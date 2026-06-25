@@ -74,6 +74,20 @@ class ProductionConfig:
     budget: BudgetConfig = field(default_factory=BudgetConfig)
 
 
+def is_mock() -> bool:
+    """Mock mode runs the full pipeline with deterministic fakes + local ffmpeg media,
+    so the architecture is testable end-to-end without a live key or spend.
+
+    Enabled explicitly via AUTEUR_MOCK=1, or implicitly when no API key is present.
+    """
+    flag = os.getenv("AUTEUR_MOCK", "").lower()
+    if flag in {"1", "true", "yes"}:
+        return True
+    if flag in {"0", "false", "no"}:
+        return False
+    return not DASHSCOPE_API_KEY
+
+
 def require_api_key() -> str:
     key = DASHSCOPE_API_KEY
     if not key:

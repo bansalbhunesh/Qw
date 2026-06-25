@@ -1,19 +1,19 @@
 """Editor / Critic — the Qwen-VL review loop plus final assembly.
 
 The critic is the multimodal heart of Auteur: Qwen-VL *watches* a rendered clip (sampled
-frames) and scores it against the shot's intent on three axes. The Budget Governor then decides
-whether a failing clip is worth a reshoot. Approved clips are assembled with ffmpeg into a
-vertical short.
+frames, passed as data URIs) and scores it against the shot's intent on three axes. The Budget
+Governor then decides whether a failing clip is worth a reshoot. Approved clips are assembled
+with ffmpeg into a vertical short.
 """
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 from ..budget import BudgetGovernor
 from ..llm import QwenClient
 from ..models import Shot
+from .. import media
 
 STAGE = "critic"
 
@@ -30,7 +30,12 @@ class Editor:
         self.client = client
         self.governor = governor
 
-    def critique(self, shot: Shot, frame_urls: list[str]) -> dict:
+    def sample_frames(self, clip_path: str, n: int = 3) -> list[str]:
+        """Extract frames and return them as data URIs the Qwen-VL critic can consume."""
+        frames = media.extract_frames(clip_path, n=n)
+        return [media.frame_to_data_uri(f) for f in frames]
+
+    def critique(self, shot: Shot, frame_uris: list[str]) -> dict:
         """Have Qwen-VL watch sampled frames and score the clip."""
         content: list[dict] = [
             {
@@ -42,31 +47,16 @@ class Editor:
                 ),
             }
         ]
-        for url in frame_urls:
-            content.append({"type": "image_url", "image_url": {"url": url}})
+        for uri in frame_uris:
+            content.append({"type": "image_url", "image_url": {"url": uri}})
 
         result = self.client.vision(
             STAGE,
-            [
-                {"role": "system", "content": _CRITIC_SYS},
-                {"role": "user", "content": content},
-            ],
+            [{"role": "system", "content": _CRITIC_SYS}, {"role": "user", "content": content}],
         )
         return result if isinstance(result, dict) else {"overall": 5.0, "fix": ""}
 
     @staticmethod
-    def assemble(clip_paths: list[str], audio_paths: list[str | None], out_path: str | Path) -> str:
-        """Concatenate approved clips (with per-shot audio) into one vertical short via ffmpeg.
-
-        Hardened during the build; the concat-demuxer flow is sketched here.
-        """
-        out_path = Path(out_path)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        concat_file = out_path.with_suffix(".txt")
-        concat_file.write_text("".join(f"file '{p}'\n" for p in clip_paths))
-        subprocess.run(
-            ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file),
-             "-c", "copy", str(out_path)],
-            check=True,
-        )
-        return str(out_path)
+    def assemble(clip_paths: list[str], out_path: str | Path) -> str:
+        """Concatenate approved clips into one vertical short via ffmpeg."""
+        return media.concat_clips(clip_paths, out_path)

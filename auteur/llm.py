@@ -1,8 +1,8 @@
-"""Qwen client — a thin, metered wrapper over the OpenAI-compatible DashScope endpoint.
+"""Qwen client — a thin, metered wrapper over a pluggable transport.
 
-Every call is tier-tagged and reported to the Budget Governor so the token ledger is
-complete. Agents never instantiate clients directly; they go through `QwenClient` so the
-Governor sees every token.
+Every call is tier-tagged and reported to the Budget Governor so the token ledger is complete,
+in both live and mock mode. Agents never touch a transport directly; they go through
+`QwenClient` so the Governor sees every token.
 """
 
 from __future__ import annotations
@@ -10,16 +10,15 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from openai import OpenAI
-
 from .budget import BudgetGovernor
-from .config import DASHSCOPE_OPENAI_BASE, TIER_MODELS, Tier, require_api_key
+from .config import TIER_MODELS, Tier
+from .transport import Transport, make_transport
 
 
 class QwenClient:
-    def __init__(self, governor: BudgetGovernor):
+    def __init__(self, governor: BudgetGovernor, transport: Transport | None = None):
         self.governor = governor
-        self._client = OpenAI(api_key=require_api_key(), base_url=DASHSCOPE_OPENAI_BASE)
+        self._t = transport or make_transport()
 
     def chat(
         self,
@@ -33,26 +32,16 @@ class QwenClient:
     ) -> str:
         """A budgeted chat completion. Returns the assistant message content."""
         model = TIER_MODELS[tier]
-        # Rough pre-flight estimate so we fail before paying, not after.
         self.governor.assert_can_spend_tokens(_estimate_tokens(messages))
-
-        kwargs: dict[str, Any] = {"model": model, "messages": messages, "temperature": temperature}
-        if max_tokens:
-            kwargs["max_tokens"] = max_tokens
-        if json_mode:
-            kwargs["response_format"] = {"type": "json_object"}
-
-        resp = self._client.chat.completions.create(**kwargs)
-        usage = resp.usage
-        self.governor.record_llm(
-            stage=stage, model=model, tier=tier,
-            prompt_tokens=getattr(usage, "prompt_tokens", 0),
-            completion_tokens=getattr(usage, "completion_tokens", 0),
+        content, p_tok, c_tok = self._t.complete(
+            stage, model, messages,
+            temperature=temperature, max_tokens=max_tokens, json_mode=json_mode,
         )
-        return resp.choices[0].message.content or ""
+        self.governor.record_llm(stage=stage, model=model, tier=tier,
+                                 prompt_tokens=p_tok, completion_tokens=c_tok)
+        return content
 
     def chat_json(self, stage: str, tier: Tier, messages: list[dict[str, Any]], **kw) -> dict:
-        """Chat that must return a JSON object. Parses and returns the dict."""
         raw = self.chat(stage, tier, messages, json_mode=True, **kw)
         return _loads_lenient(raw)
 
@@ -64,27 +53,24 @@ class QwenClient:
         temperature: float = 0.2,
         json_mode: bool = True,
     ) -> dict | str:
-        """A Qwen-VL call. `messages` use the OpenAI multimodal content format
-        (image_url entries may be data URIs or OSS URLs). Used by the critic loop."""
+        """A Qwen-VL call. `messages` use the OpenAI multimodal content format (image_url
+        entries may be data URIs or OSS URLs). Used by the critic + judge."""
         model = TIER_MODELS[Tier.VISION]
-        kwargs: dict[str, Any] = {"model": model, "messages": messages, "temperature": temperature}
-        if json_mode:
-            kwargs["response_format"] = {"type": "json_object"}
-        resp = self._client.chat.completions.create(**kwargs)
-        usage = resp.usage
-        self.governor.record_llm(
-            stage=stage, model=model, tier=Tier.VISION,
-            prompt_tokens=getattr(usage, "prompt_tokens", 0),
-            completion_tokens=getattr(usage, "completion_tokens", 0),
+        content, p_tok, c_tok = self._t.complete(
+            stage, model, messages, temperature=temperature, max_tokens=None, json_mode=json_mode,
         )
-        content = resp.choices[0].message.content or ""
+        self.governor.record_llm(stage=stage, model=model, tier=Tier.VISION,
+                                 prompt_tokens=p_tok, completion_tokens=c_tok)
         return _loads_lenient(content) if json_mode else content
 
 
 def _estimate_tokens(messages: list[dict[str, Any]]) -> int:
     """Cheap heuristic: ~4 chars/token. Good enough for a pre-flight budget gate."""
-    chars = sum(len(str(m.get("content", ""))) for m in messages)
-    return chars // 4 + 256  # headroom for the completion
+    chars = 0
+    for m in messages:
+        c = m.get("content", "")
+        chars += len(c) if isinstance(c, str) else len(str(c))
+    return chars // 4 + 256
 
 
 def _loads_lenient(raw: str) -> dict:

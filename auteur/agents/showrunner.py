@@ -44,49 +44,38 @@ class Showrunner:
         prod.style = self.art.build_bible(prod.script)
 
         clip_paths: list[str] = []
-        audio_paths: list[str | None] = []
 
         for shot in prod.script.shots:
             if not self.governor.can_render_clip():
                 break  # ran out of budget — ship what we have
 
             prompt = ArtDirector.apply(prod.style, shot.video_prompt)
-            clip_url = self.dp.render(prompt)
-            frames = _sample_frames(clip_url)
-            review = self.editor.critique(shot, frames)
+            clip = self.dp.render(prompt, self.workdir / f"shot_{shot.index}.mp4", index=shot.index)
+            review = self.editor.critique(shot, self.editor.sample_frames(clip))
             shot.critic_score = float(review.get("overall", 0.0))
 
             if self.governor.should_retake(shot.critic_score, shot.importance):
                 self.governor.register_retake()
                 fixed = f"{prompt} {review.get('fix', '')}".strip()
-                clip_url = self.dp.render(fixed)
+                clip = self.dp.render(
+                    fixed, self.workdir / f"shot_{shot.index}_retake.mp4", index=shot.index
+                )
                 shot.retaken = True
                 shot.critic_score = float(
-                    self.editor.critique(shot, _sample_frames(clip_url)).get("overall", shot.critic_score)
+                    self.editor.critique(shot, self.editor.sample_frames(clip)).get(
+                        "overall", shot.critic_score
+                    )
                 )
 
-            shot.clip_path = clip_url
-            clip_paths.append(clip_url)
+            shot.clip_path = clip
+            clip_paths.append(clip)
 
             voice = _voice_for(prod, shot)
-            audio_paths.append(
-                self.sound.voice_line(shot.dialogue, voice, str(self.workdir / f"a{shot.index}.wav"))
-            )
+            self.sound.voice_line(shot.dialogue, voice, str(self.workdir / f"a{shot.index}.wav"))
 
-        prod.final_path = self.editor.assemble(
-            clip_paths, audio_paths, self.workdir / "final.mp4"
-        )
+        prod.final_path = self.editor.assemble(clip_paths, self.workdir / "final.mp4")
         self.governor.flush()
         return prod
-
-
-def _sample_frames(clip_url: str) -> list[str]:
-    """Pull a few representative frames from a clip for the Qwen-VL critic.
-
-    Hardened during the build (ffmpeg frame extraction -> OSS URLs). For now returns the clip
-    URL so the critic interface is exercised end to end.
-    """
-    return [clip_url]
 
 
 def _voice_for(prod: Production, shot):

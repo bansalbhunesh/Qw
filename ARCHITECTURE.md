@@ -48,15 +48,27 @@ flush(ledger.json)
 4. **Importance-weighted retakes** — scarce reshoot budget spent on the hook first.
 5. **Pre-flight gating** — refuse a call before paying if it would blow the ceiling.
 
+## Mock mode
+
+`AUTEUR_MOCK` (auto-on when no key) swaps two seams without touching agent logic:
+- **LLM**: `transport.MockTransport` returns deterministic, stage-appropriate JSON. Critic
+  scores are seeded to vary, so some shots fail and the retake economics genuinely run.
+- **Media**: `media.make_placeholder_clip` synthesizes real per-shot ffmpeg clips; frame
+  sampling and assembly are the *same code* used live. Output is a genuine `.mp4`.
+
+This makes the whole architecture runnable and testable offline, and reduces going live to
+providing a key.
+
 ## Build roadmap (to July 10)
 
 - [x] Repo skeleton, budget economy, agent interfaces, Alibaba Cloud proof, benchmark contract
+- [x] Mock-mode pipeline: runs end-to-end offline, produces a real `.mp4` + ledger
+- [x] Frame sampling (ffmpeg) + Qwen-VL critic loop wired (data-URI frames)
+- [x] `NaiveShowrunner` baseline + functional benchmark harness + Qwen-VL judge
+- [x] Test suite (budget economics, pipeline smoke, benchmark smoke) — passing
 - [ ] Wire `DASHSCOPE_API_KEY`; validate Wan2.7 async request/response shapes live
-- [ ] Harden frame sampling (ffmpeg) + OSS upload round-trip
-- [ ] Implement CosyVoice TTS call + music bed
-- [ ] Implement the `NaiveShowrunner` baseline for the benchmark
-- [ ] Run the benchmark over `bench/premises.txt`, populate README table
+- [ ] OSS upload round-trip for final delivery; CosyVoice TTS call + music bed
+- [ ] Run the benchmark live; populate README table with real scores
 - [ ] Deploy `deploy/alibaba_cloud.py` to ECS; record the proof video
 - [ ] Polish: web viewer that streams production steps for the demo
 - [ ] 3-min demo video + architecture diagram export + (optional) blog post
-```

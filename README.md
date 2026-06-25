@@ -100,24 +100,47 @@ OSS asset storage) and the proof-of-deployment file.
 
 ---
 
-## Quick start
+## Run it now — no API key required
+
+Auteur ships a **mock mode**: the full pipeline runs offline with deterministic fakes and a
+bundled static ffmpeg, producing a *real assembled `.mp4`*, a real token ledger, and a real
+benchmark report. This is how you verify the architecture end-to-end without spend.
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env          # add your DashScope API key
+AUTEUR_MOCK=1 python -m auteur.cli "A lighthouse keeper teaches the drone sent to replace him"
+# -> out/final.mp4  +  out/ledger.json (tokens by stage, clips, retakes)
+```
+
+Run the benchmark harness (naive baseline vs. Auteur, with the Qwen-VL judge):
+
+```bash
+AUTEUR_MOCK=1 python -m bench.benchmark --premises bench/premises.txt
+```
+
+Run the test suite:
+
+```bash
+AUTEUR_MOCK=1 python -m pytest -q
+```
+
+## Go live
+
+```bash
+cp .env.example .env          # add your DashScope (Alibaba Cloud Model Studio) key
 python -m auteur.cli "A night-shift nurse finds a note from a patient who left years ago"
 ```
 
-Run the benchmark (naive baseline vs. Auteur):
-
-```bash
-python -m bench.benchmark --premises bench/premises.txt
-```
+With a key present, the same code paths call Qwen-Max / Qwen-VL (OpenAI-compatible endpoint)
+and Wan2.7 for real renders — mock vs. live is a single config flip (`AUTEUR_MOCK`).
 
 ## Status
 
-This repository is an active hackathon build. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the
-detailed design and the build roadmap.
+Active hackathon build. **Working today:** full mock pipeline, Budget Governor + token ledger,
+Qwen-VL critic loop, importance-weighted retakes, ffmpeg assembly, naive baseline, benchmark
+harness, and a passing test suite. **Next:** validate Wan2.7 / CosyVoice request shapes against
+live DashScope, OSS round-trip, and populate the benchmark table with real scores. See
+[`ARCHITECTURE.md`](ARCHITECTURE.md) for the design and full roadmap.
 
 ## License
 

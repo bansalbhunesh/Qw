@@ -1,19 +1,27 @@
 """The benchmark — the submission's kill shot.
 
-Runs each premise through (a) a NAIVE baseline showrunner and (b) AUTEUR, scores both finished
-shorts with the Qwen-VL rubric, and reports quality, tokens, and quality-per-token. The output
+Runs each premise through (a) the NAIVE baseline and (b) AUTEUR, scores both finished shorts
+with the Qwen-VL rubric judge, and reports quality, tokens, and quality-per-token. The output
 table goes straight into the README and the demo's closing slide.
 
-The naive baseline is deliberately the "obvious" build everyone else ships: one-shot script,
-qwen-max for everything, render every shot once, no critic, no budget routing, no caching.
+Runs fully in mock mode (no key, no spend) to validate the harness; with a live key the same
+code produces the real numbers.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
+
+from auteur.agents.showrunner import Showrunner
+from auteur.baseline import NaiveShowrunner
+from auteur.budget import BudgetGovernor
+from auteur.config import ProductionConfig, is_mock
+from auteur.llm import QwenClient
+from auteur.agents.editor import Editor
+from .rubric import RUBRIC_SYS, quality_per_token
 
 
 @dataclass
@@ -22,58 +30,100 @@ class Result:
     system: str
     overall: float
     tokens: int
+    clips: int
+    retakes: int
 
     @property
     def quality_per_1k(self) -> float:
-        return self.overall / (self.tokens / 1000.0) if self.tokens else 0.0
+        return quality_per_token(self.overall, self.tokens)
+
+
+def _judge(final_path: str) -> float:
+    """Score a finished short with Qwen-VL using the shared rubric. Own budget (not charged
+    to the production)."""
+    gov = BudgetGovernor(ProductionConfig().budget)
+    client = QwenClient(gov)
+    editor = Editor(client, gov)
+    frames = editor.sample_frames(final_path, n=4)
+    content = [{"type": "text", "text": "Judge this short drama per the rubric."}]
+    content += [{"type": "image_url", "image_url": {"url": u}} for u in frames]
+    result = client.vision(
+        "rubric_judge",
+        [{"role": "system", "content": RUBRIC_SYS}, {"role": "user", "content": content}],
+    )
+    return float(result.get("overall", 0.0)) if isinstance(result, dict) else 0.0
 
 
 def run_benchmark(premises: list[str], outdir: Path) -> list[Result]:
-    """Produce + judge both systems for every premise.
-
-    Implementation note: this orchestrates real productions, so it is gated on live DashScope
-    access and is run during the build to populate the README table. The structure below is the
-    contract the report renderer expects.
-    """
-    from .rubric import RUBRIC_SYS  # noqa: F401  (used once productions are wired in)
-
     results: list[Result] = []
-    # for premise in premises:
-    #     naive = NaiveShowrunner(...).run(premise)   # baseline build
-    #     auteur = Showrunner(...).run(premise)        # our build
-    #     score each final cut with Qwen-VL using RUBRIC_SYS
-    #     results.append(Result(...)) for both
+    for i, premise in enumerate(premises):
+        for system, cls in (("naive", NaiveShowrunner), ("auteur", Showrunner)):
+            wd = outdir / f"{system}_{i}"
+            show = cls(ProductionConfig(), workdir=wd)
+            prod = show.run(premise)
+            overall = _judge(prod.final_path)
+            st = show.governor.state
+            results.append(Result(
+                premise=premise, system=system, overall=overall,
+                tokens=st.tokens_used, clips=st.clips_used, retakes=st.retakes_used,
+            ))
     return results
 
 
 def render_report(results: list[Result]) -> str:
-    """Render a Markdown table + the headline efficiency claim."""
-    lines = ["| Premise | System | Quality (0-10) | Tokens | Quality / 1k tok |",
-             "|---|---|---|---|---|"]
+    lines = [
+        "## Auteur benchmark — naive baseline vs. Auteur" + ("  _(mock run)_" if is_mock() else ""),
+        "",
+        "| Premise | System | Quality (0-10) | Tokens | Clips | Retakes | Quality / 1k tok |",
+        "|---|---|---|---|---|---|---|",
+    ]
     for r in results:
         lines.append(
-            f"| {r.premise[:40]} | {r.system} | {r.overall:.1f} | {r.tokens:,} | {r.quality_per_1k:.2f} |"
+            f"| {r.premise[:38]} | {r.system} | {r.overall:.1f} | {r.tokens:,} | "
+            f"{r.clips} | {r.retakes} | {r.quality_per_1k:.2f} |"
         )
+    lines += ["", _headline(results)]
     return "\n".join(lines)
+
+
+def _headline(results: list[Result]) -> str:
+    naive = [r for r in results if r.system == "naive"]
+    auteur = [r for r in results if r.system == "auteur"]
+    if not naive or not auteur:
+        return ""
+
+    def avg(rs, attr):
+        return sum(getattr(r, attr) for r in rs) / len(rs)
+
+    q_n, q_a = avg(naive, "overall"), avg(auteur, "overall")
+    t_n, t_a = avg(naive, "tokens"), avg(auteur, "tokens")
+    quality_pct = (q_a / q_n * 100) if q_n else 0
+    token_pct = (t_a / t_n * 100) if t_n else 0
+    return (
+        f"**Headline:** Auteur delivers **{quality_pct:.0f}% of the baseline's quality "
+        f"at {token_pct:.0f}% of the tokens** "
+        f"(quality/1k tok: {avg(auteur, 'quality_per_1k'):.2f} vs {avg(naive, 'quality_per_1k'):.2f})."
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Auteur benchmark: naive vs Auteur")
     parser.add_argument("--premises", default="bench/premises.txt")
     parser.add_argument("--out", default="bench/results")
+    parser.add_argument("--limit", type=int, default=0, help="cap number of premises (0 = all)")
     args = parser.parse_args(argv)
 
     premises = [l.strip() for l in Path(args.premises).read_text().splitlines() if l.strip()]
+    if args.limit:
+        premises = premises[: args.limit]
     outdir = Path(args.out)
     outdir.mkdir(parents=True, exist_ok=True)
 
     results = run_benchmark(premises, outdir)
     report = render_report(results)
     (outdir / "report.md").write_text(report)
-    (outdir / "results.json").write_text(
-        json.dumps([r.__dict__ for r in results], indent=2)
-    )
-    print(report or "(no results yet — wire DASHSCOPE_API_KEY and run live)")
+    (outdir / "results.json").write_text(json.dumps([asdict(r) for r in results], indent=2))
+    print(report)
     return 0
 
 
