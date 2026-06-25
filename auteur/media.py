@@ -1,21 +1,25 @@
 """Media utilities — ffmpeg-backed clip generation, frame sampling, and assembly.
 
 Works without a system ffmpeg by falling back to the static binary bundled with
-`imageio-ffmpeg`, so the pipeline runs anywhere. In mock mode we synthesize placeholder clips
-here; in live mode the same frame-sampling and assembly code operates on real Wan output.
+`imageio-ffmpeg`. All media operations go through here so we control codec uniformity,
+error handling, and the frame format the Qwen-VL critic receives.
 """
 
 from __future__ import annotations
 
 import base64
+import json
 import subprocess
 from functools import lru_cache
 from pathlib import Path
 
+from . import log
+
+_log = log.get("media")
+
 
 @lru_cache(maxsize=1)
 def ffmpeg_exe() -> str:
-    """Resolve an ffmpeg binary: system first, then the imageio-ffmpeg static build."""
     from shutil import which
 
     sys_ff = which("ffmpeg")
@@ -26,55 +30,153 @@ def ffmpeg_exe() -> str:
     return imageio_ffmpeg.get_ffmpeg_exe()
 
 
-def _run(args: list[str]) -> None:
-    subprocess.run([ffmpeg_exe(), "-y", *args], check=True,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+@lru_cache(maxsize=1)
+def ffprobe_exe() -> str:
+    from shutil import which
+
+    sys_fp = which("ffprobe")
+    if sys_fp:
+        return sys_fp
+    ff = ffmpeg_exe()
+    candidate = ff.replace("ffmpeg", "ffprobe")
+    if Path(candidate).exists():
+        return candidate
+    return ff  # fallback — probe via ffmpeg -i
+
+
+def _run(args: list[str], *, timeout: int = 120) -> subprocess.CompletedProcess:
+    result = subprocess.run(
+        [ffmpeg_exe(), "-y", *args],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=timeout,
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.decode("utf-8", errors="replace")[-500:]
+        raise RuntimeError(f"ffmpeg failed (rc={result.returncode}): {stderr}")
+    return result
+
+
+# --- probing -----------------------------------------------------------------------
+
+def probe_duration(path: str | Path) -> float:
+    """Return clip duration in seconds."""
+    try:
+        r = subprocess.run(
+            [ffprobe_exe(), "-v", "quiet", "-print_format", "json",
+             "-show_format", str(path)],
+            capture_output=True, text=True, timeout=15,
+        )
+        if r.returncode == 0:
+            return float(json.loads(r.stdout)["format"]["duration"])
+    except Exception:
+        pass
+    # Fallback — ffmpeg -i prints duration in stderr
+    r = subprocess.run(
+        [ffmpeg_exe(), "-i", str(path)],
+        capture_output=True, text=True, timeout=15,
+    )
+    import re
+    m = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.\d+)", r.stderr)
+    if m:
+        return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+    return 4.0  # safe fallback for test clips
 
 
 # --- mock clip synthesis ---------------------------------------------------------------
 
-def make_placeholder_clip(out_path: str | Path, index: int, seconds: int = 4,
-                          size: str = "720x1280") -> str:
-    """Generate a deterministic vertical test clip with a tone, distinct per shot index.
-
-    Used in mock mode so assembly produces a genuine .mp4 the demo/tests can inspect.
-    """
+def make_placeholder_clip(
+    out_path: str | Path, index: int, seconds: int = 4, size: str = "720x1280",
+) -> str:
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    hue = (index * 47) % 360  # vary color per shot so the cut is visibly multi-shot
+    hue = (index * 47) % 360
     _run([
         "-f", "lavfi", "-i", f"testsrc2=size={size}:rate=24:duration={seconds}",
         "-f", "lavfi", "-i", f"sine=frequency={220 + index * 40}:duration={seconds}",
         "-vf", f"hue=h={hue}", "-pix_fmt", "yuv420p",
-        "-c:v", "libx264", "-c:a", "aac", "-shortest", str(out_path),
+        "-c:v", "libx264", "-preset", "fast", "-c:a", "aac", "-shortest", str(out_path),
     ])
+    _log.info("mock clip %d -> %s (%.1fs)", index, out_path, seconds)
     return str(out_path)
 
 
 # --- frame sampling (feeds the Qwen-VL critic) -----------------------------------------
 
 def extract_frames(clip_path: str | Path, n: int = 3) -> list[str]:
-    """Extract ~n evenly spaced frames as PNGs; return their paths."""
+    """Extract ~n evenly spaced frames as PNGs; return their paths.
+
+    Uses select filter for precise frame picking instead of fps filter, ensuring we hit
+    the beginning, middle, and end of the clip regardless of duration.
+    """
     clip_path = Path(clip_path)
     out_dir = clip_path.parent / f"{clip_path.stem}_frames"
     out_dir.mkdir(parents=True, exist_ok=True)
-    pattern = str(out_dir / "f_%02d.png")
-    # fps=1 then cap at n keeps it simple and deterministic for short clips.
-    _run(["-i", str(clip_path), "-vf", f"fps=1,scale=512:-1", "-frames:v", str(n), pattern])
-    return sorted(str(p) for p in out_dir.glob("f_*.png"))
+
+    duration = probe_duration(clip_path)
+    # Don't try to extract more frames than the clip has seconds
+    n = min(n, max(1, int(duration)))
+    if n == 1:
+        timestamps = [min(duration / 2, max(0, duration - 0.5))]
+    else:
+        step = max(0.01, (duration - 0.5) / (n - 1))
+        timestamps = [min(i * step, duration - 0.3) for i in range(n)]
+
+    paths: list[str] = []
+    for i, ts in enumerate(timestamps):
+        out_png = out_dir / f"f_{i:02d}.png"
+        try:
+            _run([
+                "-ss", f"{ts:.2f}", "-i", str(clip_path),
+                "-vf", "scale=512:-1", "-frames:v", "1", str(out_png),
+            ])
+            if out_png.exists() and out_png.stat().st_size > 0:
+                paths.append(str(out_png))
+        except RuntimeError:
+            pass  # seek past end — skip this frame
+
+    if not paths:
+        # Last resort: just grab the first frame
+        fallback = out_dir / "f_fallback.png"
+        _run(["-i", str(clip_path), "-vf", "scale=512:-1", "-frames:v", "1", str(fallback)])
+        if fallback.exists():
+            paths.append(str(fallback))
+
+    _log.info("extracted %d frames from %s", len(paths), clip_path.name)
+    return paths
 
 
 def frame_to_data_uri(png_path: str | Path) -> str:
-    """Encode a frame as a data URI Qwen-VL can consume directly (no OSS round-trip needed)."""
     raw = Path(png_path).read_bytes()
     b64 = base64.b64encode(raw).decode("ascii")
     return f"data:image/png;base64,{b64}"
 
 
+# --- audio overlay ------------------------------------------------------------------
+
+def overlay_audio(video_path: str, audio_path: str | None, out_path: str | Path) -> str:
+    """Merge a dialogue audio track onto a video clip. If no audio, copy the clip."""
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    if not audio_path or not Path(audio_path).exists():
+        import shutil
+        shutil.copy2(video_path, out_path)
+        return str(out_path)
+
+    _run([
+        "-i", video_path, "-i", audio_path,
+        "-filter_complex",
+        "[0:a][1:a]amix=inputs=2:duration=first:dropout_transition=2[aout]",
+        "-map", "0:v", "-map", "[aout]",
+        "-c:v", "copy", "-c:a", "aac", "-shortest", str(out_path),
+    ])
+    return str(out_path)
+
+
 # --- assembly --------------------------------------------------------------------------
 
 def concat_clips(clip_paths: list[str], out_path: str | Path) -> str:
-    """Concatenate clips into one short. Re-encodes for robustness across heterogeneous inputs."""
+    """Concatenate clips into one short. Re-encodes for codec/resolution uniformity."""
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if not clip_paths:
@@ -82,8 +184,81 @@ def concat_clips(clip_paths: list[str], out_path: str | Path) -> str:
 
     listing = out_path.with_suffix(".concat.txt")
     listing.write_text("".join(f"file '{Path(p).resolve()}'\n" for p in clip_paths))
+
+    total_dur = sum(probe_duration(p) for p in clip_paths)
+    _log.info("assembling %d clips (%.1fs total) -> %s", len(clip_paths), total_dur, out_path.name)
+
     _run([
         "-f", "concat", "-safe", "0", "-i", str(listing),
-        "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p", str(out_path),
+        "-c:v", "libx264", "-preset", "fast",
+        "-c:a", "aac",
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+        str(out_path),
     ])
     return str(out_path)
+
+
+def concat_with_crossfade(
+    clip_paths: list[str], out_path: str | Path, fade_s: float = 0.5,
+) -> str:
+    """Concatenate with video crossfade transitions between clips. Falls back to plain
+    concat on error (some ffmpeg builds lack xfade)."""
+    if len(clip_paths) < 2:
+        return concat_clips(clip_paths, out_path)
+
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    durations = [probe_duration(p) for p in clip_paths]
+
+    # Build the xfade filter chain
+    inputs = " ".join(f"-i '{Path(p).resolve()}'" for p in clip_paths)
+    n = len(clip_paths)
+    offsets = []
+    acc = 0.0
+    for i in range(n - 1):
+        acc += durations[i] - fade_s
+        offsets.append(acc)
+
+    vfilter_parts = []
+    afilter_parts = []
+    prev_v = "[0:v]"
+    prev_a = "[0:a]"
+
+    for i in range(n - 1):
+        next_v = f"[{i + 1}:v]"
+        next_a = f"[{i + 1}:a]"
+        out_v = f"[v{i}]" if i < n - 2 else "[vout]"
+        out_a = f"[a{i}]" if i < n - 2 else "[aout]"
+        vfilter_parts.append(
+            f"{prev_v}{next_v}xfade=transition=fade:duration={fade_s}:offset={offsets[i]:.3f}{out_v}"
+        )
+        afilter_parts.append(
+            f"{prev_a}{next_a}acrossfade=d={fade_s}:c1=tri:c2=tri{out_a}"
+        )
+        prev_v = out_v
+        prev_a = out_a
+
+    fcomplex = ";".join(vfilter_parts + afilter_parts)
+    cmd = (
+        f"{inputs} -filter_complex \"{fcomplex}\" "
+        f"-map \"[vout]\" -map \"[aout]\" "
+        f"-c:v libx264 -preset fast -c:a aac -pix_fmt yuv420p "
+        f"-movflags +faststart '{out_path}'"
+    )
+
+    try:
+        result = subprocess.run(
+            f"{ffmpeg_exe()} -y {cmd}",
+            shell=True, capture_output=True, timeout=180,
+        )
+        if result.returncode == 0:
+            _log.info("crossfade assembly (%d clips, %.1fs fade) -> %s",
+                      len(clip_paths), fade_s, out_path.name)
+            return str(out_path)
+    except Exception:
+        pass
+
+    _log.warning("crossfade failed, falling back to plain concat")
+    return concat_clips(clip_paths, out_path)

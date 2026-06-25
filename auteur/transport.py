@@ -1,15 +1,16 @@
 """Transport layer — where LLM calls actually go.
 
-`QwenClient` (in llm.py) handles metering, routing, and JSON parsing; it delegates the actual
-completion to a Transport. This indirection lets the entire pipeline run in two modes:
+`QwenClient` handles metering, routing, and JSON parsing; it delegates the actual completion
+to a Transport. Two implementations:
 
-  * OpenAITransport — real Qwen / Qwen-VL via the OpenAI-compatible DashScope endpoint.
+  * OpenAITransport — real Qwen / Qwen-VL via the OpenAI-compatible DashScope endpoint, with
+    exponential-backoff retry on transient failures.
   * MockTransport   — deterministic, offline fakes that return stage-appropriate structured
-                      content, so orchestration, the budget ledger, retake logic, and the
-                      benchmark are all testable without a key or spend.
+    content, so orchestration, the budget ledger, retake logic, and the benchmark are all
+    testable without a key or spend.
 
 The mock returns are intentionally varied (some clips fail the critic) so the retake economics
-are genuinely exercised, not bypassed.
+are genuinely exercised.
 """
 
 from __future__ import annotations
@@ -19,7 +20,11 @@ import json
 import re
 from typing import Any, Protocol
 
+from . import log
 from .config import DASHSCOPE_OPENAI_BASE, require_api_key
+from .retry import with_retry
+
+_log = log.get("transport")
 
 
 class Transport(Protocol):
@@ -45,13 +50,16 @@ class OpenAITransport:
             kwargs["max_tokens"] = max_tokens
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
-        resp = self._client.chat.completions.create(**kwargs)
+
+        def _call():
+            return self._client.chat.completions.create(**kwargs)
+
+        _log.info("[%s] %s  temp=%.1f  json=%s", stage, model, temperature, json_mode)
+        resp = with_retry(_call, label=f"llm/{stage}/{model}")
         usage = resp.usage
-        return (
-            resp.choices[0].message.content or "",
-            getattr(usage, "prompt_tokens", 0),
-            getattr(usage, "completion_tokens", 0),
-        )
+        p, c = getattr(usage, "prompt_tokens", 0), getattr(usage, "completion_tokens", 0)
+        _log.info("[%s] %s  tokens: %d+%d=%d", stage, model, p, c, p + c)
+        return resp.choices[0].message.content or "", p, c
 
 
 # --- mock --------------------------------------------------------------------------------
@@ -61,7 +69,6 @@ def _seed(*parts: str) -> int:
 
 
 def _text_of(messages: list[dict[str, Any]]) -> str:
-    """Flatten message content (handles multimodal list content) to plain text."""
     out: list[str] = []
     for m in messages:
         c = m.get("content", "")
@@ -73,12 +80,9 @@ def _text_of(messages: list[dict[str, Any]]) -> str:
 
 
 class MockTransport:
-    """Deterministic offline fakes. Same input → same output, so tests are stable."""
-
     def complete(self, stage, model, messages, *, temperature, max_tokens, json_mode):
         text = _text_of(messages)
         content = self._dispatch(stage, text)
-        # Token counts: estimate prompt, fabricate a plausible completion size.
         prompt_tokens = max(1, len(text) // 4)
         completion_tokens = max(1, len(content) // 4)
         return content, prompt_tokens, completion_tokens
@@ -95,14 +99,14 @@ class MockTransport:
             return self._judge(text)
         if stage == "critic" or "score these frames" in low:
             return self._critique(text)
+        if "music" in low or "soundtrack" in low or "score cue" in low:
+            return self._music()
         return json.dumps({"ok": True})
-
-    # individual stage fakes -------------------------------------------------------------
 
     def _beats(self, text: str) -> str:
         m = re.search(r"(\d+)-beat", text)
         n = int(m.group(1)) if m else 6
-        labels = ["Hook", "Setup", "Turn", "Crisis", "Button", "Tag", "Coda", "Echo"]
+        labels = ["Hook", "Setup", "Turn", "Crisis", "Button", "Tag"]
         beats = []
         for i in range(n):
             importance = 1.0 if i == 0 else round(0.4 + 0.5 * (1 - i / max(1, n)), 2)
@@ -116,29 +120,44 @@ class MockTransport:
     def _shots(self, text: str) -> str:
         n = len(re.findall(r"(?m)^\s*\d+\.", text)) or 6
         shots = []
+        dialogues = [
+            "I never thought you'd come back.",
+            "",
+            "It was always here, wasn't it?",
+            "",
+            "You know I can't stay.",
+            "Then don't. But remember this.",
+        ]
         for i in range(n):
             shots.append({
                 "beat_index": i,
                 "description": f"Shot {i + 1}: medium close-up, slow push-in, soft practical light.",
-                "dialogue": "" if i % 2 else "I never thought you'd come back.",
-                "video_prompt": f"cinematic vertical shot {i + 1}, a person in a dim room, "
-                                f"emotional, shallow depth of field, 35mm",
+                "dialogue": dialogues[i % len(dialogues)],
+                "video_prompt": (
+                    f"cinematic vertical shot {i + 1}, a person in a dim room, "
+                    f"emotional, shallow depth of field, 35mm, soft warm lighting, "
+                    f"aspect ratio 9:16"
+                ),
             })
         return json.dumps({"shots": shots})
 
     def _bible(self, text: str) -> str:
         return json.dumps({
-            "look": "muted teal grade, 35mm, shallow depth of field, soft practical lighting",
+            "look": "muted teal grade, 35mm anamorphic, shallow depth of field, soft practical lighting, "
+                    "warm amber highlights, cool shadow tones",
             "characters": [
-                {"name": "Mara", "description": "late 30s, short dark hair, navy scrubs, tired eyes",
+                {"name": "Mara", "description": "late 30s, short dark hair parted left, deep brown eyes, "
+                 "navy scrubs with ID badge, tired but kind expression, olive skin",
                  "voice": "warm"},
+                {"name": "Elias", "description": "mid 60s, silver close-cropped hair, reading glasses on "
+                 "a cord, grey cardigan over white shirt, weathered hands",
+                 "voice": "gravelly"},
             ],
         })
 
     def _critique(self, text: str) -> str:
-        # Deterministically vary scores so some shots fail and trigger the retake economics.
         s = _seed("critique", text[:200]) % 100
-        overall = 5.0 + (s % 50) / 10.0  # 5.0 .. 9.9
+        overall = 5.0 + (s % 50) / 10.0
         fix = "" if overall >= 7.0 else "tighten framing and increase contrast on the subject"
         return json.dumps({
             "prompt_adherence": round(min(10.0, overall + 0.3), 1),
@@ -158,6 +177,15 @@ class MockTransport:
             "emotional_impact": round(base, 1),
             "overall": round(base, 1),
             "notes": "Mock judgement — deterministic placeholder until live scoring.",
+        })
+
+    def _music(self) -> str:
+        return json.dumps({
+            "cues": [
+                {"beat_index": 0, "mood": "tense", "genre": "ambient", "intensity": 0.3},
+                {"beat_index": 2, "mood": "melancholy", "genre": "piano", "intensity": 0.6},
+                {"beat_index": 4, "mood": "cathartic", "genre": "strings", "intensity": 0.9},
+            ]
         })
 
 

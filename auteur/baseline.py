@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from . import log
 from .budget import BudgetGovernor
 from .config import ProductionConfig, Tier
 from .llm import QwenClient
@@ -22,26 +23,31 @@ from .agents.cinematographer import Cinematographer
 from .agents.editor import Editor
 
 STAGE = "naive"
+_log = log.get("baseline")
 
-_SYS = "You are a screenwriter. Return ONLY JSON."
+_SYS = "You are a screenwriter. Return ONLY valid JSON."
 _USER = """Write a {shots}-shot vertical short drama for this premise: {premise}
 
 Return JSON:
-{{"shots": [{{"description": "...", "dialogue": "...", "video_prompt": "..."}}]}}
-Describe each character's full appearance in every video_prompt."""
+{{"shots": [{{"description": "...", "dialogue": "...", "video_prompt": "a complete, \
+self-contained text-to-video prompt describing everything in the shot including all character \
+appearances in full detail"}}]}}
+Describe each character's FULL physical appearance in every single video_prompt — no references \
+to other shots. Each prompt must stand alone."""
 
 
 class NaiveShowrunner:
     def __init__(self, cfg: ProductionConfig, workdir: str | Path = "out_naive"):
         self.cfg = cfg
         self.workdir = Path(workdir)
+        self.workdir.mkdir(parents=True, exist_ok=True)
         self.governor = BudgetGovernor(cfg.budget, ledger_path=self.workdir / "ledger.json")
         self.client = QwenClient(self.governor)
         self.dp = Cinematographer(self.governor, resolution=cfg.resolution)
         self.editor = Editor(self.client, self.governor)
 
     def run(self, premise: str) -> Production:
-        # One-shot script, qwen-max for everything.
+        _log.info("naive baseline: %s", premise[:60])
         data = self.client.chat_json(
             STAGE, Tier.CREATIVE,
             [
@@ -61,12 +67,16 @@ class NaiveShowrunner:
         for shot in shots:
             if not self.governor.can_render_clip():
                 break
-            clip = self.dp.render(
-                shot.video_prompt, self.workdir / f"shot_{shot.index}.mp4", index=shot.index
-            )
-            shot.clip_path = clip
-            clip_paths.append(clip)  # no critic, no retake — ship the first take
+            try:
+                clip = self.dp.render(
+                    shot.video_prompt, self.workdir / f"shot_{shot.index}.mp4", index=shot.index,
+                )
+                shot.clip_path = clip
+                clip_paths.append(clip)
+            except Exception:
+                _log.error("naive: shot %d failed, skipping", shot.index)
+                continue
 
-        final = self.editor.assemble(clip_paths, self.workdir / "final.mp4")
+        final = self.editor.assemble(clip_paths, self.workdir / "final.mp4") if clip_paths else ""
         self.governor.flush()
         return Production(premise=premise, script=script, final_path=final)

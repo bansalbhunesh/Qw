@@ -1,16 +1,13 @@
-"""Proof of Alibaba Cloud deployment.
+"""Alibaba Cloud deployment — the proof-of-cloud file for the hackathon submission.
 
-This file is the single point that demonstrates Auteur's backend runs on Alibaba Cloud, as
-required by the hackathon submission rules. It does two cloud-native things:
+This file demonstrates Auteur's backend running on Alibaba Cloud:
+  1. DashScope (Model Studio) for Qwen + Wan inference.
+  2. OSS (Object Storage Service) for clip/frame/final-cut persistence.
+  3. FastAPI service on ECS (or Function Compute) with health checks.
 
-  1. Calls Alibaba Cloud Model Studio (DashScope) for Qwen + Wan inference.
-  2. Persists generated assets (clips, key frames, the final cut) to Alibaba Cloud OSS
-     (Object Storage Service), returning public URLs the agents and Qwen-VL critic consume.
+The demo recording shows this process serving traffic from an Alibaba Cloud host.
 
-The FastAPI app in `serve()` is what runs on the ECS instance (or Function Compute). The demo
-recording for the submission shows this process serving traffic from an Alibaba Cloud host.
-
-Env (set on the ECS instance / in .env):
+Required env on the ECS instance / in .env:
   DASHSCOPE_API_KEY        - Model Studio key
   OSS_ACCESS_KEY_ID        - RAM user access key
   OSS_ACCESS_KEY_SECRET    - RAM user secret
@@ -20,37 +17,55 @@ Env (set on the ECS instance / in .env):
 
 from __future__ import annotations
 
+import json
 import os
 import uuid
+from pathlib import Path
+
+from auteur import log as _logmod
+from auteur.retry import with_retry
+
+_log = _logmod.get("deploy")
+
 
 # --- Alibaba Cloud OSS asset storage ---------------------------------------------------
 
-def upload_to_oss(data: bytes, key: str | None = None, content_type: str = "video/mp4") -> str:
-    """Upload bytes to Alibaba Cloud OSS and return the object URL.
+class OSSClient:
+    """Thin wrapper over the oss2 SDK with retry and structured logging."""
 
-    Uses the official `oss2` SDK. This is the concrete Alibaba Cloud service call that proves
-    the backend stores its artifacts on Alibaba Cloud infrastructure.
-    """
-    import oss2  # Alibaba Cloud OSS SDK
+    def __init__(self):
+        import oss2
 
-    auth = oss2.Auth(os.environ["OSS_ACCESS_KEY_ID"], os.environ["OSS_ACCESS_KEY_SECRET"])
-    endpoint = os.environ["OSS_ENDPOINT"]
-    bucket_name = os.environ["OSS_BUCKET"]
-    bucket = oss2.Bucket(auth, endpoint, bucket_name)
+        self.auth = oss2.Auth(os.environ["OSS_ACCESS_KEY_ID"], os.environ["OSS_ACCESS_KEY_SECRET"])
+        self.endpoint = os.environ["OSS_ENDPOINT"]
+        self.bucket_name = os.environ["OSS_BUCKET"]
+        self.bucket = oss2.Bucket(self.auth, self.endpoint, self.bucket_name)
 
-    key = key or f"auteur/{uuid.uuid4().hex}.mp4"
-    bucket.put_object(key, data, headers={"Content-Type": content_type})
-    # Virtual-hosted style URL.
-    host = endpoint.replace("https://", "").replace("http://", "")
-    return f"https://{bucket_name}.{host}/{key}"
+    def upload(self, data: bytes, key: str | None = None, content_type: str = "video/mp4") -> str:
+        key = key or f"auteur/{uuid.uuid4().hex}"
+        def _put():
+            self.bucket.put_object(key, data, headers={"Content-Type": content_type})
+        with_retry(_put, label=f"oss/put/{key}")
+        host = self.endpoint.replace("https://", "").replace("http://", "")
+        url = f"https://{self.bucket_name}.{host}/{key}"
+        _log.info("uploaded %d KB -> %s", len(data) // 1024, url)
+        return url
+
+    def upload_file(self, path: str | Path, key: str | None = None) -> str:
+        path = Path(path)
+        content_type = "video/mp4" if path.suffix == ".mp4" else "application/octet-stream"
+        return self.upload(path.read_bytes(), key=key, content_type=content_type)
 
 
-# --- DashScope (Alibaba Cloud Model Studio) health check -------------------------------
+def _oss_available() -> bool:
+    return all(os.environ.get(k) for k in ("OSS_ACCESS_KEY_ID", "OSS_ACCESS_KEY_SECRET",
+                                            "OSS_BUCKET", "OSS_ENDPOINT"))
 
-def dashscope_smoke_test() -> str:
-    """Confirm the ECS host can reach Alibaba Cloud Model Studio and run Qwen inference."""
+
+# --- DashScope health check -----------------------------------------------------------
+
+def dashscope_smoke_test() -> dict:
     from openai import OpenAI
-
     from auteur.config import DASHSCOPE_OPENAI_BASE
 
     client = OpenAI(api_key=os.environ["DASHSCOPE_API_KEY"], base_url=DASHSCOPE_OPENAI_BASE)
@@ -58,34 +73,78 @@ def dashscope_smoke_test() -> str:
         model="qwen-flash",
         messages=[{"role": "user", "content": "Reply with the single word: ready"}],
     )
-    return resp.choices[0].message.content or ""
+    return {
+        "model": "qwen-flash",
+        "reply": resp.choices[0].message.content or "",
+        "tokens": getattr(resp.usage, "total_tokens", 0),
+    }
 
 
-# --- The service that runs on Alibaba Cloud ECS ----------------------------------------
+# --- FastAPI service (runs on Alibaba Cloud ECS) ----------------------------------------
 
 def build_app():
-    """FastAPI app served from the Alibaba Cloud ECS instance."""
-    from fastapi import FastAPI
+    from fastapi import FastAPI, BackgroundTasks
+    from fastapi.responses import FileResponse
     from pydantic import BaseModel
 
     from auteur.agents.showrunner import Showrunner
     from auteur.config import ProductionConfig
 
-    app = FastAPI(title="Auteur — running on Alibaba Cloud")
+    app = FastAPI(title="Auteur — running on Alibaba Cloud", version="0.1.0")
 
     class ProduceRequest(BaseModel):
         premise: str
         shots: int = 6
+        max_tokens: int = 120_000
+
+    class ProduceResponse(BaseModel):
+        final: str | None
+        ledger: dict
+        manifest: dict | None = None
 
     @app.get("/healthz")
     def healthz() -> dict:
-        return {"status": "ok", "cloud": "alibaba", "dashscope": dashscope_smoke_test()}
+        result = {"status": "ok", "cloud": "alibaba"}
+        if os.environ.get("DASHSCOPE_API_KEY"):
+            try:
+                result["dashscope"] = dashscope_smoke_test()
+            except Exception as e:
+                result["dashscope"] = {"error": str(e)}
+        if _oss_available():
+            result["oss"] = {"configured": True, "bucket": os.environ["OSS_BUCKET"]}
+        return result
 
-    @app.post("/produce")
-    def produce(req: ProduceRequest) -> dict:
-        show = Showrunner(ProductionConfig(shots=req.shots))
+    @app.post("/produce", response_model=ProduceResponse)
+    def produce(req: ProduceRequest) -> ProduceResponse:
+        cfg = ProductionConfig(shots=req.shots)
+        cfg.budget.max_tokens = req.max_tokens
+        workdir = Path("productions") / uuid.uuid4().hex[:12]
+        show = Showrunner(cfg, workdir=workdir)
         prod = show.run(req.premise)
-        return {"final": prod.final_path, "ledger": show.governor.summary()}
+
+        response = ProduceResponse(final=prod.final_path, ledger=show.governor.summary())
+
+        manifest_path = workdir / "manifest.json"
+        if manifest_path.exists():
+            response.manifest = json.loads(manifest_path.read_text())
+
+        if prod.final_path and _oss_available():
+            try:
+                oss = OSSClient()
+                url = oss.upload_file(prod.final_path)
+                response.final = url
+            except Exception as e:
+                _log.error("OSS upload failed: %s", e)
+
+        return response
+
+    @app.get("/productions/{prod_id}/final.mp4")
+    def get_final(prod_id: str) -> FileResponse:
+        path = Path("productions") / prod_id / "final.mp4"
+        if not path.exists():
+            from fastapi import HTTPException
+            raise HTTPException(404, "production not found")
+        return FileResponse(path, media_type="video/mp4")
 
     return app
 
@@ -93,7 +152,10 @@ def build_app():
 def serve() -> None:
     import uvicorn
 
-    uvicorn.run(build_app(), host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
+    _logmod.setup()
+    port = int(os.getenv("PORT", "8000"))
+    _log.info("starting Auteur on Alibaba Cloud ECS, port %d", port)
+    uvicorn.run(build_app(), host="0.0.0.0", port=port)
 
 
 if __name__ == "__main__":
