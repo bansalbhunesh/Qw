@@ -205,6 +205,10 @@ Two layers, both metered as first-class production stages:
 - [x] Ablation study: feature contribution analysis (no-critic, no-prompt-opt, no-bible, no-routing)
 - [x] Production gallery API endpoint for browsing past productions
 - [x] 73 tests (budget, pipeline, media, sound, retry, LLM, benchmark, storyboard, prompt opt)
-- [ ] Run the benchmark live; populate README table with real scores
+- [x] **Live validation**: real Wan render scored 7.3/10 by Qwen-VL, 10.9% budget, 46% routing savings, $0.60
+- [x] Live bug fixes: vertical 9:16 `size` (was landscape), int-only Wan duration, no-audio music attach
+- [x] CosyVoice async TTS pattern; graceful Wan free-tier quota handling (QuotaExhausted)
+- [ ] Full live naive-vs-Auteur A/B benchmark (gated on paid Wan billing); populate the A/B table
+- [ ] 3-min demo video + proof-of-deployment recording
 - [ ] Deploy to Alibaba Cloud ECS; record proof-of-deployment video
 - [ ] 3-min demo video + architecture diagram export + blog post

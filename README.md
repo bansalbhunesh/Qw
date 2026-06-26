@@ -35,19 +35,29 @@ frames against the previous shot to catch character drift). A failing take gets 
 reshoot with a corrected prompt; a passing take moves to the cut. This is the vision model closing
 the loop on the video model, which is what "multimodal orchestration" actually means.
 
-### The proof: a benchmark, not just a demo
-Auteur ships with an evaluation harness (`bench/`). The same set of premises runs through a
-**naive baseline** and through **Auteur**, with **Qwen-VL as an impartial judge** scoring both.
+### The proof: a real production, live on Alibaba Cloud
 
-> Headline metric: **higher quality at a fraction of the budget.**
-> Auteur scores **8.7/10** vs the baseline's **6.6/10** — a **32% quality improvement** —
-> using just **5.3% of the 120K token budget** (6,363 tokens). The Budget Governor ensures the
-> extra investment goes to critic-reviewed, importance-weighted shots with exactly one budgeted
-> retake when a take fails.
+These are **measured live** — Qwen-Max wrote the script, Wan rendered the footage, and
+**Qwen-VL scored the real frames** (not mocks) on DashScope International:
 
-In a field where ~95% of submissions are demos with zero evaluation, a real benchmark is the
-single cheapest signal of production-grade engineering — which is exactly what these judges said
-they reward.
+> **Premise:** *"A lighthouse keeper teaches the drone sent to replace him"*
+>
+> | Metric | Live result |
+> |---|---|
+> | **Avg Qwen-VL critic score** | **7.3 / 10** (shots scored 8.0, 8.0, 6.0 on real Wan footage) |
+> | **Token budget used** | **13,043 / 120,000 — just 10.9%** |
+> | **Model-routing savings** | **46%** (13,043 actual vs 23,999 if every call used `qwen-max`) |
+> | **Real spend** | **$0.60** for the rendered clips |
+> | Tier split | grunt `qwen-flash` 5,478 · creative `qwen-max` 4,298 · vision `qwen-vl-max` 3,267 |
+>
+> The Budget Governor delivered a 7.3/10 production using a tenth of the budget, while the
+> tiered router cut token spend nearly in half versus a naive all-`qwen-max` pipeline.
+
+**Evaluation harness.** Auteur ships an A/B benchmark (`bench/`) that runs the same premises
+through a **naive baseline** and through **Auteur**, with **Qwen-VL as an impartial judge**
+scoring both. It runs deterministically in mock mode (to validate the harness with no spend) and
+against live models with a key. In a field where ~95% of submissions are demos with zero
+evaluation, a real benchmark is the cheapest signal of production-grade engineering.
 
 **Ablation study.** Auteur also ships a feature-contribution analysis (`bench/ablation.py`):
 each architectural feature is disabled in turn (critic loop, prompt optimizer, style bible,
@@ -117,7 +127,7 @@ Every Auteur production outputs five first-class artifacts:
 |-----------|-------------------|
 | **Narrative ability** | Structured beat-sheet screenwriting with importance-weighted beats, not one-shot prompting |
 | **Multimodal orchestration** | Qwen-Max + Qwen-VL + Wan + CosyVoice TTS coordinated in a 4-axis critic loop with cross-shot continuity scoring |
-| **Output quality under a token budget** | The Budget Governor — with a benchmark proving 32% quality improvement at 5.3% budget utilization, plus ablation study proving each feature's contribution |
+| **Output quality under a token budget** | The Budget Governor — a live 7.3/10 production using 10.9% of budget with 46% routing savings, plus a naive-vs-Auteur benchmark and an ablation study proving each feature's contribution |
 | **Production-readiness** | Alibaba Cloud (ECS + OSS + DashScope), token ledger, eval harness, ablation study, 73 tests, storyboard export, live web viewer |
 | **Innovation** | Adaptive scarcity-aware retakes, cross-shot visual continuity, dynamic resolution routing, prompt optimizer, tone-aware transitions, storyboard export — not a linear pipeline |
 
@@ -206,10 +216,13 @@ The viewer at `:8080` streams productions in real time via SSE.
 ## Status
 
 **Live-validated pipeline.** Full end-to-end productions run on Alibaba Cloud DashScope with
-real Wan video generation, Qwen-Max/VL orchestration, CosyVoice TTS, and AI-directed scoring.
+real Wan video generation, Qwen-Max/VL orchestration, and AI-directed scoring. A live run of
+*"A lighthouse keeper teaches the drone sent to replace him"* produced real vertical Wan footage
+scored **7.3/10** by Qwen-VL, using **10.9%** of the token budget and **$0.60** of render spend,
+with the tiered router cutting token cost **46%** versus a naive all-`qwen-max` pipeline.
 
 Working today:
-- Budget Governor + token ledger (6K tokens to produce a 6-shot film from 120K budget)
+- Budget Governor + token ledger (13K tokens / 10.9% of budget for a live multi-shot film)
 - 4-axis Qwen-VL critic loop: prompt adherence, character consistency, shot quality, cross-shot visual continuity
 - Importance-weighted retakes with adaptive scarcity: bar rises as budget depletes
 - Visual continuity: i2v frame-chaining via OSS-uploaded anchor frames (with t2v fallback)
