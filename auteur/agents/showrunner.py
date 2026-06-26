@@ -63,8 +63,32 @@ class Showrunner:
         self.editor = Editor(self.client, self.governor)
         self._score_plan: dict | None = None
 
+    def _clean_workdir(self) -> None:
+        """Remove generated artifacts from a previous run so outputs reflect exactly one
+        production (stale clips/concat lists from an earlier run cause confusing mismatches)."""
+        patterns = [
+            "shot_*.mp4", "merged_*.mp4", "anchor_*.png", "audio_*.wav",
+            "*.concat.txt", "final.mp4", "final_nomusic.mp4", "score.wav",
+        ]
+        removed = 0
+        for pat in patterns:
+            for p in self.workdir.glob(pat):
+                try:
+                    p.unlink()
+                    removed += 1
+                except OSError:
+                    pass
+        for d in self.workdir.glob("*_frames"):
+            if d.is_dir():
+                import shutil
+                shutil.rmtree(d, ignore_errors=True)
+                removed += 1
+        if removed:
+            _log.info("cleaned %d stale artifact(s) from %s", removed, self.workdir)
+
     def run(self, premise: str) -> Production:
         _log.info("=== PRODUCTION START: %s ===", premise[:60])
+        self._clean_workdir()
         prod = Production(premise=premise)
 
         bus.emit("production_start", "showrunner", premise=premise)

@@ -67,17 +67,23 @@ class Cinematographer:
         if seed is None and reference_image and Path(reference_image).exists():
             seed = media.frame_to_data_uri(reference_image)
 
+        fallback_reason = ""
         if seed:
             try:
                 path = self._render_with(WAN_I2V_MODEL, prompt, out_path, index, seed)
-                self.governor.record_video(STAGE, WAN_I2V_MODEL, clips=1, note=prompt[:80])
+                self.governor.record_video(
+                    STAGE, WAN_I2V_MODEL, clips=1, note=f"i2v continuity | {prompt[:60]}",
+                )
                 _log.info("shot %d rendered (i2v, continuity) -> %s", index, path)
                 return path
             except Exception as exc:  # i2v unsupported / failed — degrade gracefully
-                _log.warning("shot %d i2v failed (%s) — falling back to t2v", index, exc)
+                fallback_reason = f"{type(exc).__name__}: {exc}"[:90]
+                _log.warning("shot %d i2v failed (%s) — falling back to t2v", index, fallback_reason)
 
         path = self._render_with(WAN_T2V_MODEL, prompt, out_path, index, None)
-        self.governor.record_video(STAGE, WAN_T2V_MODEL, clips=1, note=prompt[:80])
+        # Record WHY we used t2v so the ledger reveals i2v failures without needing console logs.
+        note = f"t2v (i2v fallback: {fallback_reason})" if fallback_reason else prompt[:80]
+        self.governor.record_video(STAGE, WAN_T2V_MODEL, clips=1, note=note)
         _log.info("shot %d rendered (t2v) -> %s", index, path)
         return path
 
