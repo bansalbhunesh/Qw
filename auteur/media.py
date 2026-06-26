@@ -230,7 +230,11 @@ def mix_music(
 # --- assembly --------------------------------------------------------------------------
 
 def concat_clips(clip_paths: list[str], out_path: str | Path) -> str:
-    """Concatenate clips into one short. Re-encodes for codec/resolution uniformity."""
+    """Concatenate clips into one short. Re-encodes for codec/resolution uniformity.
+
+    Tries the concat *demuxer* first (fast), then falls back to the concat *filter* (slower but
+    robust — no list file, no path-quoting pitfalls on Windows). The filter path guarantees all
+    clips make it into the final cut even when the demuxer chokes on a platform path quirk."""
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if not clip_paths:
@@ -244,14 +248,37 @@ def concat_clips(clip_paths: list[str], out_path: str | Path) -> str:
     total_dur = sum(probe_duration(p) for p in clip_paths)
     _log.info("assembling %d clips (%.1fs total) -> %s", len(clip_paths), total_dur, out_path.name)
 
-    _run([
-        "-f", "concat", "-safe", "0", "-i", str(listing),
-        "-c:v", "libx264", "-preset", "fast",
-        "-c:a", "aac",
-        "-pix_fmt", "yuv420p",
-        "-movflags", "+faststart",
-        str(out_path),
-    ])
+    try:
+        _run([
+            "-f", "concat", "-safe", "0", "-i", str(listing),
+            "-c:v", "libx264", "-preset", "fast",
+            "-c:a", "aac",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            str(out_path),
+        ])
+        return str(out_path)
+    except RuntimeError as exc:
+        _log.warning("concat demuxer failed (%s) — using concat filter", exc)
+        return _concat_filter(clip_paths, out_path)
+
+
+def _concat_filter(clip_paths: list[str], out_path: str | Path) -> str:
+    """Concatenate via the concat filter (each clip as a separate -i input). Windows-safe:
+    paths are passed as argv, never written into a list file."""
+    out_path = Path(out_path)
+    cmd: list[str] = []
+    for p in clip_paths:
+        cmd += ["-i", str(Path(p).resolve())]
+    n = len(clip_paths)
+    streams = "".join(f"[{i}:v:0][{i}:a:0]" for i in range(n))
+    cmd += [
+        "-filter_complex", f"{streams}concat=n={n}:v=1:a=1[v][a]",
+        "-map", "[v]", "-map", "[a]",
+        "-c:v", "libx264", "-preset", "fast", "-c:a", "aac",
+        "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out_path),
+    ]
+    _run(cmd)
     return str(out_path)
 
 

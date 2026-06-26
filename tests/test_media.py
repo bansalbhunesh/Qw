@@ -51,6 +51,17 @@ def test_concat_clips(tmp_path):
     assert dur >= 5.0  # 3 clips * 2s minus possible rounding
 
 
+def test_concat_filter_keeps_all_clips(tmp_path):
+    clips = [
+        media.make_placeholder_clip(tmp_path / f"c{i}.mp4", index=i, seconds=2)
+        for i in range(4)
+    ]
+    final = media._concat_filter(clips, tmp_path / "filter.mp4")
+    assert Path(final).exists()
+    dur = media.probe_duration(final)
+    assert dur >= 7.0  # 4 clips * 2s, all present (not just one)
+
+
 def test_concat_with_crossfade(tmp_path):
     clips = [
         media.make_placeholder_clip(tmp_path / f"c{i}.mp4", index=i, seconds=3)
