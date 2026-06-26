@@ -200,6 +200,15 @@ reports which Wan model names your account can call — useful for a fast 403/qu
 python scripts/diagnose.py    # checks ffmpeg, API key, models, runs a test production
 ```
 
+**Demo reel.** Turn any finished production into a shareable sizzle reel — title card, the real
+footage with each shot's live Qwen-VL score captioned, and a closing budget-economy stats card,
+over a procedural score. Offline (ffmpeg + Pillow), no spend:
+
+```bash
+python scripts/make_reel.py out_live              # 16:9 -> out_live/reel.mp4
+python scripts/make_reel.py out_live --vertical   # 9:16 mobile cut for socials
+```
+
 ## Deploy
 
 One-command deployment with Docker Compose:
@@ -253,7 +262,8 @@ Working today:
 - Live web Studio: real-time critic verdicts, retake decisions, and budget status bars (SSE)
 - Production Gallery: showcase grid with hover-play previews, scores, and aggregate metrics
 - Hardened FastAPI backend: CORS, auto-generated Swagger docs, /gallery + /metrics endpoints
-- 81 passing tests, naive baseline, benchmark harness
+- Demo reel generator: any production → shareable 16:9 or 9:16 sizzle with live scores + score
+- 85 passing tests, naive baseline, benchmark harness
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design, module map, and roadmap.
 
