@@ -107,6 +107,7 @@ class MockTransport:
         m = re.search(r"(\d+)-beat", text)
         n = int(m.group(1)) if m else 6
         labels = ["Hook", "Setup", "Turn", "Crisis", "Button", "Tag"]
+        tones = ["tense", "melancholy", "urgent", "bittersweet", "cathartic", "tender"]
         beats = []
         for i in range(n):
             importance = 1.0 if i == 0 else round(0.4 + 0.5 * (1 - i / max(1, n)), 2)
@@ -114,6 +115,7 @@ class MockTransport:
                 "label": labels[i % len(labels)],
                 "summary": f"Beat {i + 1}: a turn in the story that raises the stakes.",
                 "importance": importance,
+                "tone": tones[i % len(tones)],
             })
         return json.dumps({"logline": "A quiet moment cracks open a hidden truth.", "beats": beats})
 

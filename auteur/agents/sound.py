@@ -32,6 +32,22 @@ _VOICE_MAP: dict[str, str] = {
     "neutral": "longxiaochun",
 }
 
+# Mood -> a root/third/fifth triad (Hz) for the procedural score bed. Lower octaves read as
+# warmer and sit comfortably under dialogue. Minor triads for darker moods, major for hope.
+_SCORE_KEYS: dict[str, tuple[float, float, float]] = {
+    "tense": (146.83, 174.61, 220.00),      # D minor
+    "urgent": (146.83, 174.61, 220.00),
+    "melancholy": (220.00, 261.63, 329.63),  # A minor
+    "sad": (220.00, 261.63, 329.63),
+    "bittersweet": (220.00, 261.63, 329.63),
+    "tender": (130.81, 164.81, 196.00),      # C major
+    "hopeful": (130.81, 164.81, 196.00),
+    "warm": (130.81, 164.81, 196.00),
+    "cathartic": (196.00, 246.94, 293.66),   # G major
+    "triumphant": (196.00, 246.94, 293.66),
+    "neutral": (164.81, 196.00, 246.94),     # E minor
+}
+
 
 class Sound:
     def __init__(self, governor: BudgetGovernor):
@@ -56,6 +72,41 @@ class Sound:
         path = with_retry(_do_tts, label=f"tts/{text[:20]}", max_retries=3, base_delay=2.0)
         self.governor.record_tts(STAGE, TTS_MODEL, note=text[:60])
         return path
+
+    # --- score bed ----------------------------------------------------------------
+
+    def score(self, mood: str, duration: float, out_path: str, intensity: float = 0.5) -> str:
+        """Synthesize a warm ambient music bed for the whole piece, keyed to the emotional mood.
+
+        Procedural (ffmpeg-only) so it always works offline and costs zero tokens: a triad pad
+        tuned to a mood-appropriate key, softened with tremolo, a low-pass for warmth, and a
+        touch of echo for space. Volume scales with intensity but stays low — it sits *under*
+        dialogue, never over it.
+        """
+        if duration <= 0:
+            duration = 8.0
+        root, third, fifth = _SCORE_KEYS.get(mood.lower(), _SCORE_KEYS["neutral"])
+        vol = max(0.08, min(0.28, 0.12 + 0.18 * float(intensity)))
+        fade = min(2.0, duration / 4)
+        out = Path(out_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+
+        fcomplex = (
+            "[0:a][1:a][2:a]amix=inputs=3:duration=longest:normalize=0[mix];"
+            "[mix]tremolo=f=0.15:d=0.4,lowpass=f=900,aecho=0.8:0.7:55:0.3,"
+            f"afade=t=in:d={fade:.2f},afade=t=out:st={max(0.0, duration - fade):.2f}:d={fade:.2f},"
+            f"volume={vol:.2f}[a]"
+        )
+        media._run([
+            "-f", "lavfi", "-i", f"sine=frequency={root}:duration={duration:.2f}",
+            "-f", "lavfi", "-i", f"sine=frequency={third}:duration={duration:.2f}",
+            "-f", "lavfi", "-i", f"sine=frequency={fifth}:duration={duration:.2f}",
+            "-filter_complex", fcomplex, "-map", "[a]",
+            "-c:a", "pcm_s16le", str(out),
+        ])
+        _log.info("score: mood=%s intensity=%.1f duration=%.1fs -> %s",
+                  mood, intensity, duration, out.name)
+        return str(out)
 
     # --- DashScope CosyVoice TTS ---------------------------------------------------
 

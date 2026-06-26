@@ -200,6 +200,33 @@ def overlay_audio(video_path: str, audio_path: str | None, out_path: str | Path)
     return str(out_path)
 
 
+def mix_music(
+    video_path: str | Path, music_path: str | Path, out_path: str | Path,
+    music_volume: float = 0.6,
+) -> str:
+    """Mix a music bed UNDER a video's existing audio (dialogue + clip sound).
+
+    The bed is attenuated and mixed at low weight so dialogue stays intelligible. Falls back to
+    copying the original video if the mix fails (e.g. video has no audio track)."""
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        _run([
+            "-i", str(video_path), "-i", str(music_path),
+            "-filter_complex",
+            f"[1:a]volume={music_volume}[m];"
+            "[0:a][m]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[aout]",
+            "-map", "0:v", "-map", "[aout]",
+            "-c:v", "copy", "-c:a", "aac", "-shortest", str(out_path),
+        ])
+        return str(out_path)
+    except RuntimeError as exc:
+        _log.warning("music mix failed (%s) — shipping without score", exc)
+        import shutil
+        shutil.copy2(video_path, out_path)
+        return str(out_path)
+
+
 # --- assembly --------------------------------------------------------------------------
 
 def concat_clips(clip_paths: list[str], out_path: str | Path) -> str:

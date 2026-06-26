@@ -29,6 +29,7 @@ class Beat:
     label: str               # e.g. "Hook", "Turn", "Button"
     summary: str
     importance: float        # 0..1 — drives retake priority (the hook earns reshoots)
+    tone: str = ""           # emotional register (tense|melancholy|tender|...) — drives the score
 
 
 @dataclass

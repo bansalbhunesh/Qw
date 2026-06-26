@@ -143,6 +143,7 @@ class Writer:
                 label=b.get("label", f"Beat {i}"),
                 summary=b.get("summary", ""),
                 importance=importance,
+                tone=b.get("tone", ""),
             ))
         return beats
 

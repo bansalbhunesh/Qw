@@ -25,7 +25,7 @@ from pathlib import Path
 
 from .. import log, media
 from ..budget import BudgetGovernor
-from ..config import ProductionConfig
+from ..config import ProductionConfig, Tier
 from ..events import bus
 from ..llm import QwenClient
 from ..models import Production
@@ -36,6 +36,17 @@ from .sound import Sound
 from .writer import Writer
 
 _log = log.get("showrunner")
+
+_COMPOSER_SYS = """\
+You are a film composer. Given a story's logline and the emotional tone of its beats, choose ONE \
+overall musical mood for the score and an intensity. Return ONLY JSON:
+{"mood": "tense|melancholy|tender|hopeful|bittersweet|cathartic|urgent|neutral", \
+"intensity": 0.0-1.0}"""
+
+_COMPOSER_USER = """\
+Logline: {logline}
+Beat tones, in order: {tones}
+Soundtrack brief: pick the single mood that best underscores the emotional arc."""
 
 
 class Showrunner:
@@ -50,6 +61,7 @@ class Showrunner:
         self.dp = Cinematographer(self.governor, resolution=cfg.resolution)
         self.sound = Sound(self.governor)
         self.editor = Editor(self.client, self.governor)
+        self._score_plan: dict | None = None
 
     def run(self, premise: str) -> Production:
         _log.info("=== PRODUCTION START: %s ===", premise[:60])
@@ -107,9 +119,26 @@ class Showrunner:
         # --- phase 4: assembly ---
         _log.info("assembling %d clips into final cut", len(clip_paths))
         bus.emit("assembly_start", "editor", n_clips=len(clip_paths))
-        prod.final_path = self.editor.assemble(
-            clip_paths, self.workdir / "final.mp4", audio_paths=audio_paths,
+        silent_cut = self.editor.assemble(
+            clip_paths, self.workdir / "final_nomusic.mp4", audio_paths=audio_paths,
         )
+
+        # --- phase 4b: score ---
+        mood, intensity = self._plan_score(prod)
+        self._score_plan = {"mood": mood, "intensity": intensity}
+        try:
+            duration = media.probe_duration(silent_cut)
+            music = self.sound.score(
+                mood, duration, str(self.workdir / "score.wav"), intensity=intensity,
+            )
+            prod.final_path = self.editor.add_score(silent_cut, music, self.workdir / "final.mp4")
+            bus.emit("score_complete", "sound", mood=mood, intensity=intensity)
+        except Exception:
+            _log.warning("scoring failed — shipping the unscored cut:\n%s", traceback.format_exc())
+            import shutil
+            final = self.workdir / "final.mp4"
+            shutil.copy2(silent_cut, final)
+            prod.final_path = str(final)
 
         # --- phase 5: deliverables ---
         self.governor.flush()
@@ -177,6 +206,33 @@ class Showrunner:
 
         return clip, audio
 
+    def _plan_score(self, prod: Production) -> tuple[str, float]:
+        """Pick the score's mood + intensity. A cheap grunt-tier 'composer' call reads the beat
+        tones; on any failure we fall back to the climactic beat's tone."""
+        tones = [b.tone for b in prod.script.beats if b.tone] if prod.script else []
+        fallback_mood = tones[-1] if tones else "neutral"
+        try:
+            plan = self.client.chat_json(
+                "composer",
+                Tier.GRUNT,
+                [
+                    {"role": "system", "content": _COMPOSER_SYS},
+                    {"role": "user", "content": _COMPOSER_USER.format(
+                        logline=prod.script.logline if prod.script else "",
+                        tones=", ".join(tones) or "unspecified",
+                    )},
+                ],
+                temperature=0.4,
+            )
+            # The mock 'soundtrack' stage returns a cues list; live returns a flat plan.
+            if isinstance(plan.get("cues"), list) and plan["cues"]:
+                top = max(plan["cues"], key=lambda c: c.get("intensity", 0))
+                return str(top.get("mood", fallback_mood)), float(top.get("intensity", 0.5))
+            return str(plan.get("mood", fallback_mood)), float(plan.get("intensity", 0.5))
+        except Exception:
+            _log.warning("composer call failed — using beat tone '%s'", fallback_mood)
+            return fallback_mood, 0.5
+
     @staticmethod
     def _voice_for(prod: Production, shot):
         """Match a shot's dialogue to a character voice from the Bible."""
@@ -201,6 +257,7 @@ class Showrunner:
                 "look": prod.style.look if prod.style else "",
                 "characters": [asdict(c) for c in prod.style.characters] if prod.style else [],
             },
+            "score": self._score_plan or {},
             "budget": self.governor.summary(),
         }
         if prod.script:

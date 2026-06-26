@@ -59,6 +59,17 @@ def test_consistency_mode_produces_anchor_frames(tmp_path):
     assert anchors, "expected at least one anchor frame in consistency mode"
 
 
+def test_production_is_scored(tmp_path):
+    show = Showrunner(_cfg(shots=3), workdir=tmp_path)
+    prod = show.run("A diver finds a message in a bottle on the seafloor")
+    assert Path(prod.final_path).exists()
+    # A music bed was synthesized and a score plan recorded in the manifest.
+    assert (tmp_path / "score.wav").exists()
+    import json
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    assert manifest["score"].get("mood")
+
+
 def test_naive_baseline_runs(tmp_path):
     naive = NaiveShowrunner(_cfg(shots=3), workdir=tmp_path)
     prod = naive.run("A street vendor and the regular who never speaks")

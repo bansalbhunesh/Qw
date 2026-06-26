@@ -74,3 +74,12 @@ def test_overlay_audio_no_audio_copies(tmp_path):
     clip = media.make_placeholder_clip(tmp_path / "v.mp4", index=0, seconds=2)
     result = media.overlay_audio(clip, None, tmp_path / "copy.mp4")
     assert Path(result).exists()
+
+
+def test_mix_music(tmp_path):
+    clip = media.make_placeholder_clip(tmp_path / "v.mp4", index=0, seconds=3)
+    media._run(["-f", "lavfi", "-i", "sine=frequency=300:duration=3",
+                "-c:a", "pcm_s16le", str(tmp_path / "score.wav")])
+    out = media.mix_music(clip, tmp_path / "score.wav", tmp_path / "scored.mp4")
+    assert Path(out).exists()
+    assert Path(out).stat().st_size > 1000

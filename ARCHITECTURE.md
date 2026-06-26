@@ -22,8 +22,8 @@ Budget Governor (`auteur/budget.py`) is the optimizer's accountant; the agents a
 | `auteur/agents/writer.py` | Premise → beat sheet → cinematic shot-level script (structured JSON) |
 | `auteur/agents/art_director.py` | Character & Style Bible — one generation, cached across every shot |
 | `auteur/agents/cinematographer.py` | Wan2.7 t2v/i2v jobs, i2v continuity chaining with t2v fallback, download verification |
-| `auteur/agents/sound.py` | CosyVoice TTS async API with retry, character voice mapping |
-| `auteur/agents/editor.py` | Qwen-VL critic loop + audio overlay + crossfade assembly |
+| `auteur/agents/sound.py` | CosyVoice TTS (character voices) + procedural mood-keyed score bed |
+| `auteur/agents/editor.py` | Qwen-VL critic loop + audio overlay + crossfade assembly + score mix |
 | `auteur/agents/showrunner.py` | Orchestrator — budgeted control loop, partial-failure recovery, manifest |
 | `auteur/baseline.py` | NaiveShowrunner — the A/B baseline (no routing, no caching, no critic) |
 | `auteur/viewer.py` | Live web viewer — SSE streaming of production events for the demo |
@@ -52,7 +52,10 @@ for shot in shots:
         keep(clip, voice)
     except:
         log + skip (ship what we have)
-assemble(clips, audio, crossfade) -> final.mp4
+cut = assemble(clips, dialogue, crossfade)        # silent-of-music cut
+mood = composer(beat_tones)                        # grunt-tier mood pick
+score = synth_pad(mood, duration(cut))             # procedural music bed
+final.mp4 = mix(cut, score)                         # bed under dialogue
 flush(ledger.json, manifest.json)
 ```
 
@@ -72,6 +75,17 @@ Auteur threads each shot's **final frame** into the next render as an image-to-v
 forward *visually*, not just textually. If an i2v render fails (model unsupported, transient
 error), it falls back to text-to-video automatically — continuity is an upgrade, never a
 single point of failure. Toggle with `--no-consistency`.
+
+## Sound design (most submissions ship none)
+
+Two layers, both metered as first-class production stages:
+- **Dialogue** — each shot's line is voiced with a per-character CosyVoice voice from the Bible.
+- **Score** — a grunt-tier "composer" call reads the beat tones and picks one overall mood +
+  intensity; `Sound.score()` then synthesizes a warm triad pad tuned to a mood-appropriate
+  musical key (minor for dark beats, major for hope), softened with tremolo / low-pass / echo.
+  It's mixed *under* the dialogue at low volume in the final cut. Procedural and offline, so it
+  costs zero video/audio-model spend and never fails a render; the mood choice is the only LLM
+  cost (a few hundred grunt-tier tokens).
 
 ## Resilience
 
@@ -108,7 +122,8 @@ single point of failure. Toggle with `--no-consistency`.
 - [x] Event bus + live web viewer (SSE streaming for the demo video)
 - [x] Dockerfile with system ffmpeg + health check
 - [x] Visual continuity: i2v frame-chaining for cross-shot character consistency (+ t2v fallback)
-- [x] Test suite: 32 tests (budget, pipeline, media, retry, LLM, benchmark)
+- [x] Score: AI-directed mood + procedural music bed mixed under dialogue
+- [x] Test suite: 37 tests (budget, pipeline, media, sound, retry, LLM, benchmark)
 - [ ] Wire `DASHSCOPE_API_KEY`; validate Wan2.7 / CosyVoice request shapes live
 - [ ] OSS round-trip validation with real bucket
 - [ ] Run the benchmark live; populate README table with real scores

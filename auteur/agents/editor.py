@@ -110,3 +110,8 @@ class Editor:
         if crossfade and len(final_clips) >= 2:
             return media.concat_with_crossfade(final_clips, out_path)
         return media.concat_clips(final_clips, out_path)
+
+    @staticmethod
+    def add_score(video_path: str, music_path: str, out_path: str | Path) -> str:
+        """Mix the music bed under the assembled cut. Returns the final video path."""
+        return media.mix_music(video_path, music_path, out_path)
