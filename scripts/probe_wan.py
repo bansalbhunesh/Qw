@@ -36,10 +36,21 @@ CANDIDATES = [
     "wan2.5-t2v-preview",
 ]
 
+# Candidate image-to-video model names (used for visual continuity / frame-chaining).
+I2V_CANDIDATES = [
+    "wan2.7-i2v",
+    "wan2.2-i2v-plus",
+    "wan2.2-i2v-flash",
+    "wan2.5-i2v-preview",
+    "wanx2.1-i2v-turbo",
+]
+
 PROMPT = "A serene mountain lake at sunrise, cinematic, gentle mist over the water."
+# A small public image so the i2v create-task is well-formed; we only check model acceptance.
+SAMPLE_IMG = "https://dashscope.oss-cn-beijing.aliyuncs.com/images/dog_and_girl.jpeg"
 
 
-def probe(model: str) -> None:
+def probe(model: str, *, img_url: str | None = None) -> None:
     url = f"{BASE}/services/aigc/video-generation/video-synthesis"
     headers = {
         "Authorization": f"Bearer {KEY}",
@@ -51,6 +62,8 @@ def probe(model: str) -> None:
         "input": {"prompt": PROMPT},
         "parameters": {"resolution": "720P"},
     }
+    if img_url:
+        payload["input"]["img_url"] = img_url
     try:
         r = requests.post(url, json=payload, headers=headers, timeout=30)
     except Exception as exc:
@@ -78,15 +91,21 @@ def main() -> int:
         return 1
     print(f"Endpoint: {BASE}")
     print(f"Key: ...{KEY[-6:]}  (len={len(KEY)})\n")
-    print("Probing candidate Wan t2v model names:\n")
+    print("Probing candidate Wan t2v (text-to-video) model names:\n")
     for m in CANDIDATES:
         probe(m)
+
+    print("\nProbing candidate Wan i2v (image-to-video, for continuity) model names:\n")
+    for m in I2V_CANDIDATES:
+        probe(m, img_url=SAMPLE_IMG)
+
     print(
         "\nReading the result:\n"
-        "  * 'OK (task_id=...)'        -> use that model name (set AUTEUR_MODEL_WAN_T2V).\n"
+        "  * 'OK (task_id=...)'        -> use that model name "
+        "(AUTEUR_MODEL_WAN_T2V / AUTEUR_MODEL_WAN_I2V).\n"
         "  * code='InvalidApiKey'      -> key problem.\n"
-        "  * code='Throttling'/quota   -> free Wan quota exhausted; enable billing/top-up.\n"
-        "  * code='ModelNotFound'/403  -> that model isn't available to your account/region.\n"
+        "  * code='FreeTierOnly'/quota -> free Wan quota exhausted; enable billing/top-up.\n"
+        "  * 'Model not exist'         -> that model name isn't valid; use one that returned OK.\n"
         "  * code='AccessDenied'       -> model needs activation in the Model Studio console.\n"
     )
     return 0
