@@ -96,6 +96,8 @@ class ProductionConfig:
     # so the character and world stay consistent. Falls back to text-to-video automatically
     # if an i2v render fails, so it never breaks a production.
     consistency: bool = True
+    # Quality gate: drop shots scoring below this threshold from the final cut (0 = keep all).
+    quality_gate: float = 0.0
     budget: BudgetConfig = field(default_factory=BudgetConfig)
 
 

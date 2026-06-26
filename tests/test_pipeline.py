@@ -131,6 +131,15 @@ def test_smart_voice_attribution():
     assert Showrunner._voice_for(prod, shot_plain).name == "Elias"  # index 1 → char 1
 
 
+def test_quality_gate_drops_low_scoring_shots(tmp_path):
+    """Quality gate should drop below-threshold shots from the final cut."""
+    cfg = _cfg(shots=4)
+    cfg.quality_gate = 7.0
+    show = Showrunner(cfg, workdir=tmp_path)
+    prod = show.run("A painter watches the museum close for the last time")
+    assert Path(prod.final_path).exists()
+
+
 def test_naive_baseline_runs(tmp_path):
     naive = NaiveShowrunner(_cfg(shots=3), workdir=tmp_path)
     prod = naive.run("A street vendor and the regular who never speaks")

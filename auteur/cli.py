@@ -34,6 +34,10 @@ def main(argv: list[str] | None = None) -> int:
         help="disable image-to-video continuity (render every shot independently)",
     )
     parser.add_argument(
+        "--quality-gate", type=float, default=0.0, metavar="SCORE",
+        help="drop shots scoring below this threshold from the final cut (0 = keep all)",
+    )
+    parser.add_argument(
         "--estimate", action="store_true",
         help="print the projected cost of this production and exit (renders nothing)",
     )
@@ -45,7 +49,8 @@ def main(argv: list[str] | None = None) -> int:
     _log = _logmod.get("cli")
 
     cfg = ProductionConfig(shots=args.shots, resolution=args.resolution,
-                           consistency=not args.no_consistency)
+                           consistency=not args.no_consistency,
+                           quality_gate=args.quality_gate)
     cfg.budget.max_tokens = args.max_tokens
     cfg.budget.max_clips = args.max_clips
     cfg.budget.max_retakes = args.max_retakes
@@ -81,19 +86,46 @@ def main(argv: list[str] | None = None) -> int:
         show.governor.flush()
         return 1
 
-    print(f"\nFinal cut: {prod.final_path}")
-    print(f"Manifest:  {Path(args.out) / 'manifest.json'}")
-    print(f"Ledger:    {Path(args.out) / 'ledger.json'}")
-    print("\nBudget summary:")
-    print(json.dumps(show.governor.summary(), indent=2))
+    summary = show.governor.summary()
+
+    print(f"\n{'=' * 60}")
+    print(f"  PRODUCTION COMPLETE")
+    print(f"{'=' * 60}")
+    print(f"  Final cut : {prod.final_path}")
+    print(f"  Manifest  : {Path(args.out) / 'manifest.json'}")
+    print(f"  Ledger    : {Path(args.out) / 'ledger.json'}")
+
+    print(f"\n  Budget:")
+    pct = summary['tokens_used'] / max(1, summary['token_budget']) * 100
+    print(f"    Tokens  : {summary['tokens_used']:,} / {summary['token_budget']:,}  ({pct:.1f}%)")
+    print(f"    Clips   : {summary['clips_used']} / {summary['clip_budget']}")
+    print(f"    Retakes : {summary['retakes_used']} / {summary['retake_budget']}")
+    if summary.get('estimated_cost_usd', 0) > 0:
+        print(f"    Spend   : ${summary['estimated_cost_usd']:.2f} / ${summary['max_spend_usd']:.2f}")
+
+    if summary.get('tokens_by_stage'):
+        print(f"\n  Token breakdown:")
+        for stage, tokens in sorted(summary['tokens_by_stage'].items(),
+                                    key=lambda x: -x[1]):
+            bar = '#' * max(1, int(tokens / max(1, summary['tokens_used']) * 30))
+            print(f"    {stage:16s}  {tokens:>6,}  {bar}")
 
     if prod.script:
-        print(f"\nShots ({len(prod.script.shots)}):")
+        scored = [s for s in prod.script.shots if s.critic_score is not None]
+        if scored:
+            avg = sum(s.critic_score for s in scored) / len(scored)
+            lo = min(s.critic_score for s in scored)
+            hi = max(s.critic_score for s in scored)
+            print(f"\n  Quality: avg={avg:.1f}  min={lo:.1f}  max={hi:.1f}")
+
+        print(f"\n  Shots ({len(prod.script.shots)}):")
         for s in prod.script.shots:
             flag = " [retaken]" if s.retaken else ""
-            score = f" score={s.critic_score:.1f}" if s.critic_score is not None else ""
-            print(f"  {s.index}. [{s.importance:.1f}]{score}{flag}  {s.description[:60]}")
+            score = f" {s.critic_score:.1f}/10" if s.critic_score is not None else "  ---"
+            imp_bar = '*' * int(s.importance * 5)
+            print(f"    {s.index}. {score} imp={imp_bar:5s}{flag}  {s.description[:50]}")
 
+    print(f"{'=' * 60}")
     return 0
 
 

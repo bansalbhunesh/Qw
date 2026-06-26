@@ -179,6 +179,27 @@ class Showrunner:
             bus.emit("production_failed", "showrunner", reason="no clips rendered")
             return prod
 
+        # --- quality gate: drop below-threshold shots from the final cut ---
+        if self.cfg.quality_gate > 0:
+            gate = self.cfg.quality_gate
+            keep_idxs = []
+            for i, shot in enumerate(prod.script.shots):
+                if i >= len(clip_paths):
+                    break
+                if shot.critic_score is not None and shot.critic_score < gate:
+                    _log.info("quality gate: dropping shot %d (score=%.1f < %.1f)",
+                              shot.index, shot.critic_score, gate)
+                else:
+                    keep_idxs.append(i)
+            if keep_idxs and len(keep_idxs) < len(clip_paths):
+                dropped = len(clip_paths) - len(keep_idxs)
+                clip_paths = [clip_paths[i] for i in keep_idxs]
+                audio_paths = [audio_paths[i] for i in keep_idxs]
+                _log.info("quality gate: keeping %d/%d clips (dropped %d below %.1f)",
+                          len(clip_paths), len(clip_paths) + dropped, dropped, gate)
+                bus.emit("quality_gate", "showrunner",
+                         kept=len(clip_paths), dropped=dropped, threshold=gate)
+
         # --- phase 4: assembly ---
         _log.info("assembling %d clips into final cut", len(clip_paths))
         bus.emit("budget_update", "showrunner", **self.governor.summary())

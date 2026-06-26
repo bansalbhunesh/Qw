@@ -139,6 +139,9 @@ python -m auteur.cli "A night-shift nurse finds a note from a patient" --estimat
 
 # Render for real, with a hard $1 spend cap as a safety net:
 python -m auteur.cli "A night-shift nurse finds a note from a patient" --max-spend-usd 1.00
+
+# Only keep shots scoring >= 6.0 in the final cut (quality over quantity):
+python -m auteur.cli "A night-shift nurse finds a note from a patient" --quality-gate 6.0
 ```
 
 With a key present, the same code paths call Qwen-Max / Qwen-VL (OpenAI-compatible endpoint)
@@ -172,7 +175,7 @@ Working today:
 - Resilient production: voice failures never discard clips, partial-shot recovery
 - Production report card in the manifest (quality arc, budget utilization, cost summary)
 - Live web viewer with real-time critic verdicts, retake decisions, and budget status bars
-- 46 passing tests, naive baseline, benchmark harness
+- 47 passing tests, naive baseline, benchmark harness
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design, module map, and roadmap.
 
