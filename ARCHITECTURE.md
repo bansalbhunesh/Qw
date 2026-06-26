@@ -97,6 +97,8 @@ Two layers, both metered as first-class production stages:
 - **Download verification** — Wan clips are checked for minimum file size after download.
 - **Frame sampling robustness** — seeks past clip end are caught and skipped; fallback to first frame.
 - **i2v → t2v fallback** — if image-to-video continuity fails, the shot still renders via t2v.
+- **Voice isolation** — TTS failures never discard rendered clips; shots ship silent rather than
+  being lost. Each shot's voice step is isolated from its render/critique pipeline.
 
 ## Mock mode
 
@@ -123,9 +125,11 @@ Two layers, both metered as first-class production stages:
 - [x] Dockerfile with system ffmpeg + health check
 - [x] Visual continuity: i2v frame-chaining for cross-shot character consistency (+ t2v fallback)
 - [x] Score: AI-directed mood + procedural music bed mixed under dialogue
-- [x] Test suite: 37 tests (budget, pipeline, media, sound, retry, LLM, benchmark)
-- [ ] Wire `DASHSCOPE_API_KEY`; validate Wan2.7 / CosyVoice request shapes live
-- [ ] OSS round-trip validation with real bucket
+- [x] Test suite: 39 tests (budget, pipeline, media, sound, retry, LLM, benchmark)
+- [x] Voice isolation: TTS failures no longer discard rendered clips
+- [x] i2v OSS upload: anchor frames uploaded to DashScope's temp OSS bucket for Wan i2v API
+- [x] CosyVoice v3-plus with English-compatible voices for international endpoint
+- [ ] Run the benchmark live; populate README table with real scores
 - [ ] Run the benchmark live; populate README table with real scores
 - [ ] Deploy to Alibaba Cloud ECS; record proof-of-deployment video
 - [ ] 3-min demo video + architecture diagram export + blog post

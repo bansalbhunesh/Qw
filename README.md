@@ -79,7 +79,7 @@ they reward.
 | Writer | `qwen-max` | Premise → logline → beat sheet → scripted shots (structured JSON) |
 | Art Director | `qwen-max` + `qwen-vl-max` | Character & Style Bible for cross-shot consistency |
 | Cinematographer | `wan2.7-t2v`, Wan image-to-video | Render shots; image-to-video for continuity |
-| Sound | Qwen TTS / CosyVoice | Dialogue voicing + music/SFX cues |
+| Sound | CosyVoice v3-plus TTS | Dialogue voicing (English voices) + procedural score bed |
 | Editor / Critic | `qwen-vl-max` + ffmpeg | Watch, score, retake-or-pass; assemble final cut |
 
 All model calls go through Alibaba Cloud **DashScope** (international endpoint,
@@ -136,11 +136,20 @@ and Wan2.7 for real renders — mock vs. live is a single config flip (`AUTEUR_M
 
 ## Status
 
-Active hackathon build. **Working today:** full mock pipeline, Budget Governor + token ledger,
-Qwen-VL critic loop, importance-weighted retakes, ffmpeg assembly, naive baseline, benchmark
-harness, and a passing test suite. **Next:** validate Wan2.7 / CosyVoice request shapes against
-live DashScope, OSS round-trip, and populate the benchmark table with real scores. See
-[`ARCHITECTURE.md`](ARCHITECTURE.md) for the design and full roadmap.
+**Live-validated pipeline.** Full end-to-end productions run on Alibaba Cloud DashScope with
+real Wan2.7 video generation, Qwen-Max/VL orchestration, CosyVoice TTS, and AI-directed scoring.
+
+Working today:
+- Budget Governor + token ledger (6K tokens to produce a 4-shot film from 120K budget)
+- Qwen-VL critic loop with importance-weighted retakes
+- Visual continuity: i2v frame-chaining via OSS-uploaded anchor frames (with t2v fallback)
+- CosyVoice v3-plus dialogue voicing with English-compatible character voices
+- AI-directed procedural score (mood-keyed triad pad mixed under dialogue)
+- Crossfade assembly with Windows-safe concat-filter fallback
+- Resilient production: voice failures never discard clips, partial-shot recovery
+- 39 passing tests, naive baseline, benchmark harness
+
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design, module map, and roadmap.
 
 ## License
 
