@@ -44,7 +44,7 @@ TIER_MODELS: dict[Tier, str] = {
 
 WAN_T2V_MODEL = os.getenv("AUTEUR_MODEL_WAN_T2V", "wan2.7-t2v")
 WAN_I2V_MODEL = os.getenv("AUTEUR_MODEL_WAN_I2V", "wan2.7-i2v")
-TTS_MODEL = os.getenv("AUTEUR_MODEL_TTS", "cosyvoice-v2")
+TTS_MODEL = os.getenv("AUTEUR_MODEL_TTS", "cosyvoice-v3-plus")
 
 
 @dataclass

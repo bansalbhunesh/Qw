@@ -25,11 +25,14 @@ _POLL_INTERVAL_S = 3
 _POLL_TIMEOUT_S = 120
 
 # CosyVoice voice map — character voice descriptors to DashScope voice IDs.
+# Uses English-compatible voices for the international endpoint.
 _VOICE_MAP: dict[str, str] = {
-    "warm": "longxiaochun",
-    "gravelly": "longlaotie",
+    "warm": "longshu",
+    "gravelly": "longjielidou",
     "youthful": "longxiaoxia",
-    "neutral": "longxiaochun",
+    "neutral": "longshu",
+    "deep": "longjielidou",
+    "soft": "longxiaoxia",
 }
 
 # Mood -> a root/third/fifth triad (Hz) for the procedural score bed. Lower octaves read as
@@ -122,10 +125,10 @@ class Sound:
             "parameters": {"voice": voice, "format": "wav", "sample_rate": 22050},
         }
 
-        r = requests.post(
-            f"{DASHSCOPE_NATIVE_BASE}/services/aigc/text2audio/audio-synthesis",
-            json=payload, headers=headers, timeout=60,
-        )
+        url = f"{DASHSCOPE_NATIVE_BASE}/services/aigc/text2audio/audio-synthesis"
+        r = requests.post(url, json=payload, headers=headers, timeout=60)
+        if r.status_code >= 400:
+            _log.error("TTS API %d: %s", r.status_code, r.text[:300])
         r.raise_for_status()
         body = r.json()
 

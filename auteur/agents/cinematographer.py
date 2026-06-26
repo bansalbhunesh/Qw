@@ -65,7 +65,7 @@ class Cinematographer:
 
         seed = image_url
         if seed is None and reference_image and Path(reference_image).exists():
-            seed = media.frame_to_data_uri(reference_image)
+            seed = self._upload_image(reference_image)
 
         fallback_reason = ""
         if seed:
@@ -99,6 +99,50 @@ class Cinematographer:
 
         return with_retry(_do_render, label=f"wan/shot_{index}", max_retries=2, base_delay=5.0)
 
+    # --- image upload for i2v continuity -----------------------------------------------
+
+    def _upload_image(self, local_path: str) -> str | None:
+        """Upload a local image to DashScope's temporary OSS bucket, returning an oss:// URL.
+
+        This is required because the Wan i2v API only accepts HTTP or oss:// URLs for img_url,
+        not base64 data URIs. Returns None on failure (caller falls back to t2v).
+        """
+        try:
+            import oss2
+        except ImportError:
+            _log.warning("oss2 not installed — cannot upload anchor for i2v")
+            return None
+
+        try:
+            headers = {**self._auth_headers(), "Content-Type": "application/json"}
+            fname = Path(local_path).name
+            r = requests.post(
+                f"{DASHSCOPE_NATIVE_BASE}/uploads",
+                json={"model": WAN_I2V_MODEL, "file_name": fname},
+                headers=headers, timeout=30,
+            )
+            if r.status_code >= 400:
+                _log.warning("upload cert API %d: %s", r.status_code, r.text[:200])
+            r.raise_for_status()
+            data = r.json().get("data", {})
+            _log.info("upload cert keys: %s", list(data.keys()))
+
+            auth = oss2.StsAuth(
+                data["oss_access_key_id"],
+                data["oss_access_key_secret"],
+                data.get("security_token") or data["oss_security_token"],
+            )
+            endpoint = data.get("upload_host") or data["oss_endpoint"]
+            bucket = oss2.Bucket(auth, endpoint, data["oss_bucket_name"])
+            obj_key = data["x_oss_object_name"]
+            bucket.put_object_from_file(obj_key, local_path)
+            oss_url = f"oss://{data['oss_bucket_name']}/{obj_key}"
+            _log.info("uploaded anchor -> %s", oss_url)
+            return oss_url
+        except Exception as exc:
+            _log.warning("anchor upload failed (%s) — i2v will be skipped", exc)
+            return None
+
     # --- DashScope async video API ---------------------------------------------------
 
     def _auth_headers(self) -> dict[str, str]:
@@ -115,6 +159,8 @@ class Cinematographer:
 
         headers = {**self._auth_headers(), "Content-Type": "application/json",
                     "X-DashScope-Async": "enable"}
+        if image_url and image_url.startswith("oss://"):
+            headers["X-DashScope-OssResourceResolve"] = "enable"
 
         r = requests.post(
             f"{DASHSCOPE_NATIVE_BASE}/services/aigc/video-generation/video-synthesis",
