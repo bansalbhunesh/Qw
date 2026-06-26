@@ -59,7 +59,7 @@ class Cinematographer:
             raise RuntimeError("clip budget exhausted")
 
         if is_mock():
-            path = media.make_placeholder_clip(out_path, index=index)
+            path = media.make_placeholder_clip(out_path, index=index, seconds=4)
             self.governor.record_video(STAGE, "mock-wan", clips=1, note=prompt[:80])
             return path
 

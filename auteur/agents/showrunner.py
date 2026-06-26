@@ -37,6 +37,7 @@ from ..models import Production
 from .art_director import ArtDirector
 from .cinematographer import Cinematographer
 from .editor import Editor
+from .prompt_optimizer import PromptOptimizer
 from .sound import Sound
 from .writer import Writer
 
@@ -67,6 +68,7 @@ class Showrunner:
         self.dp = Cinematographer(self.governor, resolution=cfg.resolution)
         self.sound = Sound(self.governor)
         self.editor = Editor(self.client, self.governor)
+        self.prompt_opt = PromptOptimizer(self.client)
         self._score_plan: dict | None = None
         self._decisions: list[dict] = []
 
@@ -220,6 +222,7 @@ class Showrunner:
         # --- phase 5: deliverables ---
         self.governor.flush()
         self._write_manifest(prod, timeline=_timeline)
+        self._export_storyboard()
 
         report = self._report_card(prod)
         bus.emit("production_complete", "showrunner",
@@ -318,6 +321,14 @@ class Showrunner:
 
         return clip_paths, audio_paths
 
+    def _resolve_resolution(self, shot) -> str:
+        """Pick per-shot resolution: hero shots get high res, others get base res."""
+        if not self.cfg.dynamic_resolution:
+            return self.cfg.resolution
+        if shot.importance >= self.cfg.hero_importance_threshold:
+            return self.cfg.hero_resolution
+        return self.cfg.base_resolution
+
     def _produce_shot(
         self, prod: Production, shot, *,
         reference_image: str | None = None,
@@ -331,8 +342,22 @@ class Showrunner:
         """
         prompt = ArtDirector.apply(prod.style, shot.video_prompt)
 
+        beat_label = ""
+        if prod.script and shot.beat_index < len(prod.script.beats):
+            beat_label = prod.script.beats[shot.beat_index].label
+
+        try:
+            prompt = self.prompt_opt.refine(prompt, shot.description, beat_label)
+        except Exception:
+            _log.warning("prompt optimization failed for shot %d — using raw prompt", shot.index)
+
+        resolution = self._resolve_resolution(shot)
+        dp = self.dp
+        if resolution != self.cfg.resolution:
+            dp = Cinematographer(self.governor, resolution=resolution)
+
         # --- render ---
-        clip = self.dp.render(
+        clip = dp.render(
             prompt, self.workdir / f"shot_{shot.index}.mp4", index=shot.index,
             reference_image=reference_image,
         )
@@ -367,7 +392,7 @@ class Showrunner:
             bus.emit("retake_decision", "showrunner",
                      index=shot.index, score=shot.critic_score,
                      importance=shot.importance, fix=fix[:80])
-            clip = self.dp.render(
+            clip = dp.render(
                 fixed_prompt, self.workdir / f"shot_{shot.index}_retake.mp4", index=shot.index,
                 reference_image=reference_image,
             )
@@ -529,6 +554,17 @@ class Showrunner:
             "estimated_cost_usd": budget.get("estimated_cost_usd", 0.0),
             "efficiency": self._efficiency_analysis(),
         }
+
+    def _export_storyboard(self) -> None:
+        manifest_path = self.workdir / "manifest.json"
+        if not manifest_path.exists():
+            return
+        try:
+            from ..storyboard import export_storyboard
+            manifest = json.loads(manifest_path.read_text())
+            export_storyboard(self.workdir, manifest)
+        except Exception:
+            _log.warning("storyboard export failed:\n%s", traceback.format_exc())
 
     def _efficiency_analysis(self) -> dict:
         """Compare actual token spend against a naive counterfactual (all creative-tier).

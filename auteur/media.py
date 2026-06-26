@@ -85,8 +85,23 @@ def probe_duration(path: str | Path) -> float:
 
 # --- mock clip synthesis ---------------------------------------------------------------
 
+def shot_duration(importance: float, beat_label: str = "") -> float:
+    """Compute shot duration based on importance and beat type.
+
+    Hooks and climaxes get longer screen time; transitional beats are tighter.
+    Returns seconds (3.0 to 8.0 range).
+    """
+    base = 3.0 + importance * 4.0
+    label = beat_label.lower()
+    if label in {"hook", "climax", "button"}:
+        base += 1.0
+    elif label in {"setup", "escalation"}:
+        base -= 0.5
+    return round(max(3.0, min(8.0, base)), 1)
+
+
 def make_placeholder_clip(
-    out_path: str | Path, index: int, seconds: int = 4, size: str = "720x1280",
+    out_path: str | Path, index: int, seconds: float = 4, size: str = "720x1280",
 ) -> str:
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)

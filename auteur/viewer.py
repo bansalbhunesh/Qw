@@ -95,6 +95,14 @@ def build_viewer_app() -> FastAPI:
             raise HTTPException(404)
         return json.loads(path.read_text())
 
+    @app.get("/productions/{prod_id}/storyboard.html", response_class=HTMLResponse)
+    def get_storyboard(prod_id: str):
+        path = Path("productions") / prod_id / "storyboard.html"
+        if not path.exists():
+            from fastapi import HTTPException
+            raise HTTPException(404, "storyboard not generated yet")
+        return HTMLResponse(path.read_text())
+
     return app
 
 

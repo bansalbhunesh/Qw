@@ -26,6 +26,8 @@ Budget Governor (`auteur/budget.py`) is the optimizer's accountant; the agents a
 | `auteur/agents/editor.py` | Qwen-VL critic loop + audio overlay + crossfade assembly + score mix |
 | `auteur/agents/showrunner.py` | Orchestrator — budgeted control loop, parallel rendering, partial-failure recovery, manifest |
 | `auteur/baseline.py` | NaiveShowrunner — the A/B baseline (no routing, no caching, no critic) |
+| `auteur/agents/prompt_optimizer.py` | Wan-specific prompt refinement (grunt-tier, maximizes render quality) |
+| `auteur/storyboard.py` | HTML storyboard export — visual production breakdown for judges |
 | `auteur/viewer.py` | Live web viewer — SSE streaming of production events for the demo |
 | `auteur/cli.py` | CLI entrypoint with structured output |
 | `deploy/alibaba_cloud.py` | OSS upload, DashScope health check, FastAPI service (ECS proof) |
@@ -43,7 +45,9 @@ for shot in shots:
     if not clip_budget: break
     try:
         prompt = inject(bible, shot.prompt)
-        clip = wan.render(prompt, reference=anchor)  # i2v continuity, t2v fallback, retried
+        prompt = optimize(prompt, shot)           # Wan-specific prompt refinement (grunt-tier)
+        resolution = resolve_resolution(shot)     # dynamic: 1080P for hero, 480P for grunt
+        clip = wan.render(prompt, reference=anchor, resolution=resolution)
         frames = extract_frames(clip)             # ffmpeg -> data URIs
         score = qwen_vl.critique(shot, frames,    # 4-axis review (incl. cross-shot continuity)
                                  prev_frames)
@@ -59,7 +63,7 @@ cut = assemble(clips, dialogue, crossfade)        # silent-of-music cut
 mood = composer(beat_tones)                        # grunt-tier mood pick
 score = synth_pad(mood, duration(cut))             # procedural music bed
 final.mp4 = mix(cut, score)                         # bed under dialogue
-flush(ledger.json, manifest.json)
+flush(ledger.json, manifest.json, storyboard.html)
 ```
 
 ## Token-efficiency techniques (the "limited budget" criterion)
@@ -77,6 +81,13 @@ flush(ledger.json, manifest.json)
    (`clip_price_usd`); mock runs price at zero (no real spend).
 7. **Tier-level reporting** — the ledger and CLI output show token spend broken down by model tier
    (grunt/creative/vision), proving the Governor actively routes cheap models for cheap work.
+8. **Dynamic resolution** — hero shots (importance >= 0.8) render at 1080P; grunt shots at 480P.
+   Same budget buys more visual impact where it matters (`--dynamic-resolution`).
+9. **Prompt optimization** — a dedicated grunt-tier agent rewrites raw video prompts for Wan's
+   specific strengths (front-loaded subjects, concrete lighting cues, single-action clarity).
+   Pays for itself in fewer retakes.
+10. **Shot pacing** — variable clip duration based on beat importance and type. Hooks and
+    climaxes get longer screen time (up to 8s); transitional beats are tighter (3s).
 
 ## 4-axis critic loop (the "multimodal orchestration" criterion)
 
@@ -186,7 +197,11 @@ Two layers, both metered as first-class production stages:
 - [x] Quality arc: per-shot score trajectory in manifest, CLI, and viewer for production analytics
 - [x] Tone-aware scene transitions: dissolve for continuity, hard cut for contrast, fade for climax
 - [x] Governor decision log: human-readable retake reasoning in the manifest
-- [x] 69 tests (budget, pipeline, media, sound, retry, LLM, benchmark)
+- [x] Prompt optimizer agent: Wan-specific prompt refinement for higher render quality
+- [x] Dynamic resolution routing: hero shots at 1080P, grunt shots at 480P
+- [x] Shot pacing engine: variable clip duration based on importance and beat type
+- [x] Storyboard HTML export: visual production breakdown with frames, scores, budget analytics
+- [x] 73 tests (budget, pipeline, media, sound, retry, LLM, benchmark, storyboard, prompt opt)
 - [ ] Run the benchmark live; populate README table with real scores
 - [ ] Deploy to Alibaba Cloud ECS; record proof-of-deployment video
 - [ ] 3-min demo video + architecture diagram export + blog post

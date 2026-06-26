@@ -38,6 +38,10 @@ def main(argv: list[str] | None = None) -> int:
         help="drop shots scoring below this threshold from the final cut (0 = keep all)",
     )
     parser.add_argument(
+        "--dynamic-resolution", action="store_true",
+        help="render hero shots at 1080P and others at 480P (budget-optimized quality)",
+    )
+    parser.add_argument(
         "--estimate", action="store_true",
         help="print the projected cost of this production and exit (renders nothing)",
     )
@@ -50,7 +54,8 @@ def main(argv: list[str] | None = None) -> int:
 
     cfg = ProductionConfig(shots=args.shots, resolution=args.resolution,
                            consistency=not args.no_consistency,
-                           quality_gate=args.quality_gate)
+                           quality_gate=args.quality_gate,
+                           dynamic_resolution=args.dynamic_resolution)
     cfg.budget.max_tokens = args.max_tokens
     cfg.budget.max_clips = args.max_clips
     cfg.budget.max_retakes = args.max_retakes
@@ -91,9 +96,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\n{'=' * 60}")
     print(f"  PRODUCTION COMPLETE")
     print(f"{'=' * 60}")
-    print(f"  Final cut : {prod.final_path}")
-    print(f"  Manifest  : {Path(args.out) / 'manifest.json'}")
-    print(f"  Ledger    : {Path(args.out) / 'ledger.json'}")
+    print(f"  Final cut  : {prod.final_path}")
+    print(f"  Storyboard : {Path(args.out) / 'storyboard.html'}")
+    print(f"  Manifest   : {Path(args.out) / 'manifest.json'}")
+    print(f"  Ledger     : {Path(args.out) / 'ledger.json'}")
 
     print(f"\n  Budget:")
     pct = summary['tokens_used'] / max(1, summary['token_budget']) * 100

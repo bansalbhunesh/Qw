@@ -83,7 +83,8 @@ they reward.
 | Showrunner | `qwen-max` (plan) · `qwen-flash` (routing) | Budget + orchestration |
 | Writer | `qwen-max` | Premise → logline → beat sheet → scripted shots (structured JSON) |
 | Art Director | `qwen-max` + `qwen-vl-max` | Character & Style Bible for cross-shot consistency |
-| Cinematographer | `wan2.2-t2v-plus`, Wan i2v | Render shots; image-to-video for continuity |
+| Prompt Optimizer | `qwen-flash` | Refine video prompts for Wan's strengths (pays for itself in fewer retakes) |
+| Cinematographer | `wan2.2-t2v-plus`, Wan i2v | Render shots; image-to-video for continuity; dynamic resolution |
 | Sound | CosyVoice v3-plus TTS | Dialogue voicing (English voices) + procedural score bed |
 | Editor / Critic | `qwen-vl-max` + ffmpeg | 4-axis scoring (incl. cross-shot continuity); assemble final cut |
 
@@ -101,7 +102,7 @@ OSS asset storage) and the proof-of-deployment file.
 | **Multimodal orchestration** | Qwen-Max + Qwen-VL + Wan + CosyVoice TTS coordinated in a 4-axis critic loop with cross-shot continuity scoring |
 | **Output quality under a token budget** | The Budget Governor — with a benchmark proving 32% quality improvement at 5.3% budget utilization |
 | **Production-readiness** | Alibaba Cloud (ECS + OSS + DashScope), token ledger, eval harness, 69 tests, live web viewer |
-| **Innovation** | Adaptive scarcity-aware retakes, cross-shot visual continuity, tone-aware transitions, decision-logged Governor — not a linear pipeline |
+| **Innovation** | Adaptive scarcity-aware retakes, cross-shot visual continuity, dynamic resolution routing, prompt optimizer, tone-aware transitions, storyboard export — not a linear pipeline |
 
 ---
 
@@ -142,6 +143,9 @@ python -m auteur.cli "A night-shift nurse finds a note from a patient" --max-spe
 
 # Only keep shots scoring >= 6.0 in the final cut (quality over quantity):
 python -m auteur.cli "A night-shift nurse finds a note from a patient" --quality-gate 6.0
+
+# Hero shots at 1080P, grunt shots at 480P (dynamic budget-optimized resolution):
+python -m auteur.cli "A night-shift nurse finds a note from a patient" --dynamic-resolution
 ```
 
 With a key present, the same code paths call Qwen-Max / Qwen-VL (OpenAI-compatible endpoint)
@@ -177,8 +181,12 @@ Working today:
 - Production report card in the manifest (quality arc, budget utilization, cost summary)
 - Parallel shot rendering when `--no-consistency` is set (wall-clock speedup with thread pool)
 - Tier-level token breakdown: proves model routing works (grunt/creative/vision spend)
+- Prompt optimizer: dedicated Wan-specific prompt refinement agent (grunt-tier, pays for itself)
+- Dynamic resolution routing: hero shots at 1080P, grunt shots at 480P (per-shot budget optimization)
+- Shot pacing engine: variable clip duration based on beat importance and type
+- Storyboard HTML export: visual production breakdown with frames, scores, and budget analytics
 - Live web viewer with real-time critic verdicts, retake decisions, and budget status bars
-- 69 passing tests, naive baseline, benchmark harness
+- 73 passing tests, naive baseline, benchmark harness
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design, module map, and roadmap.
 

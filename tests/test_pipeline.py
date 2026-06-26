@@ -286,6 +286,60 @@ def test_transition_planning():
     assert transitions[1] == "fade"     # cathartic → fade
 
 
+def test_storyboard_export(tmp_path):
+    """Production should generate a storyboard.html with shot breakdowns."""
+    show = Showrunner(_cfg(shots=3), workdir=tmp_path)
+    prod = show.run("A poet reads to an empty theater every night")
+    sb = tmp_path / "storyboard.html"
+    assert sb.exists()
+    html = sb.read_text()
+    assert "Auteur" in html
+    assert "Shot 0" in html
+    assert "Budget Summary" in html
+
+
+def test_prompt_optimizer_runs():
+    """Prompt optimizer should refine raw prompts without breaking them."""
+    from auteur.agents.prompt_optimizer import PromptOptimizer
+    from auteur.budget import BudgetGovernor
+    from auteur.config import BudgetConfig
+    from auteur.llm import QwenClient
+    gov = BudgetGovernor(BudgetConfig())
+    client = QwenClient(gov)
+    opt = PromptOptimizer(client)
+    raw = "cinematic vertical shot, a person in a dim room, emotional, 9:16"
+    refined = opt.refine(raw, "medium close-up, soft light", "Hook")
+    assert len(refined) > 0
+    assert refined != raw
+
+
+def test_dynamic_resolution_config():
+    """Dynamic resolution config should route hero shots to higher res."""
+    cfg = _cfg(shots=3)
+    cfg.dynamic_resolution = True
+    cfg.hero_resolution = "1080P"
+    cfg.base_resolution = "480P"
+    cfg.hero_importance_threshold = 0.8
+    show = Showrunner(cfg, workdir=Path("/tmp/test_dynres"))
+    from auteur.models import Shot
+    hero = Shot(index=0, beat_index=0, description="", dialogue="", video_prompt="",
+                importance=0.95)
+    grunt = Shot(index=1, beat_index=1, description="", dialogue="", video_prompt="",
+                 importance=0.4)
+    assert show._resolve_resolution(hero) == "1080P"
+    assert show._resolve_resolution(grunt) == "480P"
+
+
+def test_shot_duration_pacing():
+    """Shot duration should vary based on importance and beat type."""
+    from auteur.media import shot_duration
+    hook_dur = shot_duration(1.0, "Hook")
+    setup_dur = shot_duration(0.5, "Setup")
+    assert hook_dur > setup_dur
+    assert 3.0 <= hook_dur <= 8.0
+    assert 3.0 <= setup_dur <= 8.0
+
+
 def test_naive_baseline_runs(tmp_path):
     naive = NaiveShowrunner(_cfg(shots=3), workdir=tmp_path)
     prod = naive.run("A street vendor and the regular who never speaks")

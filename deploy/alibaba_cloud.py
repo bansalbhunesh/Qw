@@ -96,9 +96,13 @@ def build_app():
         premise: str
         shots: int = 6
         max_tokens: int = 120_000
+        max_spend_usd: float = 2.00
+        quality_gate: float = 0.0
+        dynamic_resolution: bool = False
 
     class ProduceResponse(BaseModel):
         final: str | None
+        storyboard: str | None = None
         ledger: dict
         manifest: dict | None = None
 
@@ -116,13 +120,19 @@ def build_app():
 
     @app.post("/produce", response_model=ProduceResponse)
     def produce(req: ProduceRequest) -> ProduceResponse:
-        cfg = ProductionConfig(shots=req.shots)
+        cfg = ProductionConfig(shots=req.shots, quality_gate=req.quality_gate,
+                               dynamic_resolution=req.dynamic_resolution)
         cfg.budget.max_tokens = req.max_tokens
+        cfg.budget.max_spend_usd = req.max_spend_usd
         workdir = Path("productions") / uuid.uuid4().hex[:12]
         show = Showrunner(cfg, workdir=workdir)
         prod = show.run(req.premise)
 
-        response = ProduceResponse(final=prod.final_path, ledger=show.governor.summary())
+        storyboard_path = workdir / "storyboard.html"
+        response = ProduceResponse(
+            final=prod.final_path, ledger=show.governor.summary(),
+            storyboard=str(storyboard_path) if storyboard_path.exists() else None,
+        )
 
         manifest_path = workdir / "manifest.json"
         if manifest_path.exists():

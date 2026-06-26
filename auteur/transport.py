@@ -94,6 +94,8 @@ class MockTransport:
 
     def _dispatch(self, stage: str, text: str) -> str:
         low = text.lower()
+        if stage == "prompt_optimizer" or "wan render quality" in low:
+            return self._refine_prompt(text)
         if "beat sheet" in low or '"beats"' in low or "-beat micro-drama" in low:
             return self._beats(text)
         if '"shots"' in low or "for each beat, write one shot" in low:
@@ -190,6 +192,18 @@ class MockTransport:
             "overall": round(base, 1),
             "notes": "Mock judgement — deterministic placeholder until live scoring.",
         })
+
+    def _refine_prompt(self, text: str) -> str:
+        lines = text.strip().split("\n")
+        for line in reversed(lines):
+            if line.strip() and not line.startswith("Beat:") and not line.startswith("Shot"):
+                prompt = line.strip()
+                return (
+                    f"A single figure in soft rim-lit warmth, {prompt[:200]}. "
+                    "Shallow depth of field, 35mm lens, vertical 9:16 aspect ratio, "
+                    "cinematic film grain, warm amber key light from frame left"
+                )
+        return text[-300:]
 
     def _music(self) -> str:
         return json.dumps({

@@ -98,6 +98,12 @@ class ProductionConfig:
     consistency: bool = True
     # Quality gate: drop shots scoring below this threshold from the final cut (0 = keep all).
     quality_gate: float = 0.0
+    # Dynamic resolution: hero shots (importance >= threshold) render at hero_resolution,
+    # others at base_resolution. Saves real money while keeping hero shots crisp.
+    dynamic_resolution: bool = False
+    hero_resolution: str = "1080P"
+    base_resolution: str = "480P"
+    hero_importance_threshold: float = 0.8
     budget: BudgetConfig = field(default_factory=BudgetConfig)
 
 
