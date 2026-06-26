@@ -49,33 +49,38 @@ In a field where ~95% of submissions are demos with zero evaluation, a real benc
 single cheapest signal of production-grade engineering — which is exactly what these judges said
 they reward.
 
+**Ablation study.** Auteur also ships a feature-contribution analysis (`bench/ablation.py`):
+each architectural feature is disabled in turn (critic loop, prompt optimizer, style bible,
+tiered routing) and the quality impact is measured. This proves every design decision earns its
+place — it's not a grab bag of features, it's an engineered system.
+
 ---
 
 ## Architecture
 
-```
-                          ┌──────────────────────────────────────────┐
-                          │            SHOWRUNNER (orchestrator)        │
-   premise ──────────────▶│   plans the production · owns the budget   │
-                          │   routes models · enforces the policy      │
-                          └───────┬───────────────────────────┬────────┘
-                                  │                            │  Budget Governor
-                                  ▼                            │  (token ledger)
-   ┌──────────┐   beats   ┌──────────────┐  shot prompts  ┌────▼─────────────┐
-   │  WRITER  │──────────▶│ ART DIRECTOR │───────────────▶│ CINEMATOGRAPHER  │
-   │ qwen-max │  script   │ qwen-max+VL  │  + char bible  │  Wan t2v/i2v     │
-   └──────────┘           └──────────────┘                │  + visual chain  │
-                                                          └────────┬─────────┘
-                                  ┌─────────────┐  dialogue        │ raw clips
-                                  │    SOUND    │  + music cues     ▼
-                                  │  TTS (Qwen) │──────────▶┌───────────────────┐
-                                  └─────────────┘           │  EDITOR / CRITIC   │
-                                                            │  Qwen-VL reviews   │
-                                  retake? ◀──── fail ───────│  each clip, then   │
-                                                  pass ────▶│  ffmpeg assembles  │
-                                                            └─────────┬─────────┘
-                                                                      ▼
-                                                            vertical short (.mp4)
+```mermaid
+flowchart TD
+    P["premise"] --> S["SHOWRUNNER\n(orchestrator)"]
+    S --> W["WRITER\nqwen-max"]
+    S --> BG["Budget Governor\n(token ledger)"]
+    W -->|"beat sheet\n+ script"| AD["ART DIRECTOR\nqwen-max"]
+    AD -->|"style bible\n+ char descriptions"| PO["PROMPT OPTIMIZER\nqwen-flash"]
+    PO -->|"refined prompts"| C["CINEMATOGRAPHER\nWan t2v/i2v"]
+    BG -->|"resolution routing\n480P/720P/1080P"| C
+    C -->|"raw clips"| EC["EDITOR / CRITIC\nQwen-VL + ffmpeg"]
+    EC -->|"fail → retake"| C
+    SND["SOUND\nCosyVoice TTS"] -->|"dialogue\n+ score bed"| EC
+    EC -->|"pass → assemble"| F["final.mp4\n+ storyboard.html\n+ ledger.json"]
+
+    style S fill:#1a1a2e,color:#fff,stroke:#6ea8fe
+    style BG fill:#2a1a1a,color:#fff,stroke:#e87040
+    style W fill:#1a2a1a,color:#fff,stroke:#7ec87e
+    style AD fill:#1a2a1a,color:#fff,stroke:#7ec87e
+    style PO fill:#1a2a2a,color:#fff,stroke:#6ea8fe
+    style C fill:#2a2a1a,color:#fff,stroke:#f0ad4e
+    style EC fill:#1a1a2e,color:#fff,stroke:#6ea8fe
+    style SND fill:#1a2a2a,color:#fff,stroke:#6ea8fe
+    style F fill:#0a2a0a,color:#fff,stroke:#7ec87e
 ```
 
 | Stage | Model(s) | Role |
@@ -91,6 +96,18 @@ they reward.
 All model calls go through Alibaba Cloud **DashScope** (international endpoint,
 OpenAI-compatible). See [`deploy/`](deploy/) for the Alibaba Cloud deployment (ECS backend +
 OSS asset storage) and the proof-of-deployment file.
+
+### Production deliverables (per run)
+
+Every Auteur production outputs five first-class artifacts:
+
+| Artifact | What it is |
+|----------|-----------|
+| `final.mp4` | The assembled vertical short with dialogue, score, and crossfade transitions |
+| `storyboard.html` | Self-contained visual breakdown: every shot's frames, critic scores, budget analytics, Governor decisions |
+| `manifest.json` | Full production state: script, shots, scores, timeline, report card, quality arc |
+| `ledger.json` | Per-call token ledger: who spent what, on which beat, using which model tier |
+| `score.wav` | AI-directed procedural music bed (mood-keyed triad pad) |
 
 ---
 
