@@ -35,6 +35,10 @@ class RenderFailed(RuntimeError):
     """A Wan render task failed after retries."""
 
 
+class QuotaExhausted(RuntimeError):
+    """The account's free-tier Wan quota is exhausted; paid billing must be enabled."""
+
+
 class Cinematographer:
     def __init__(self, governor: BudgetGovernor, resolution: str = "720P",
                  aspect_ratio: str = "9:16"):
@@ -189,6 +193,13 @@ class Cinematographer:
             # Surface it loudly — a bare 403 is undebuggable without it.
             _log.error("Wan create-task %d for model=%s: %s",
                        r.status_code, model, r.text[:500])
+            # Free-tier quota exhaustion is an account-billing issue, not a transient error —
+            # raise a distinct exception so the showrunner stops retrying and gives clear guidance.
+            if r.status_code == 403 and "FreeTierOnly" in r.text:
+                raise QuotaExhausted(
+                    "Wan free-tier quota exhausted. Enable paid billing in the Alibaba Cloud "
+                    "Model Studio console (and turn off 'use free tier only' mode) to continue."
+                )
         r.raise_for_status()
         body = r.json()
         task_id = body.get("output", {}).get("task_id")

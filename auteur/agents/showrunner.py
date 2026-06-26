@@ -35,7 +35,7 @@ from ..events import bus
 from ..llm import QwenClient
 from ..models import Production
 from .art_director import ArtDirector
-from .cinematographer import Cinematographer
+from .cinematographer import Cinematographer, QuotaExhausted
 from .editor import Editor
 from .prompt_optimizer import PromptOptimizer
 from .sound import Sound
@@ -72,6 +72,7 @@ class Showrunner:
         self.prompt_opt = PromptOptimizer(self.client)
         self._score_plan: dict | None = None
         self._decisions: list[dict] = []
+        self._quota_exhausted = False
 
     def _log_cost_estimate(self) -> None:
         """Print the worst-case real-money cost of this production before any clip renders,
@@ -157,9 +158,22 @@ class Showrunner:
             clip_paths, audio_paths = self._produce_parallel(prod)
 
         if not clip_paths:
-            _log.error("no clips rendered — cannot assemble")
+            if self._quota_exhausted:
+                _log.error(
+                    "=== WAN QUOTA EXHAUSTED ===\n"
+                    "  Your free-tier Wan video quota is used up. To render videos:\n"
+                    "  1. Open the Alibaba Cloud Model Studio console\n"
+                    "  2. Add a payment method (Billing), then turn OFF 'use free tier only' mode\n"
+                    "  3. Re-run — wan2.2-t2v-plus costs ~$0.10/clip at 480P, ~$0.20 at 720P\n"
+                    "  The script, Style Bible, and storyboard were still generated."
+                )
+                reason = "wan free-tier quota exhausted (enable paid billing)"
+            else:
+                _log.error("no clips rendered — cannot assemble")
+                reason = "no clips rendered"
             self.governor.flush()
-            bus.emit("production_failed", "showrunner", reason="no clips rendered")
+            self._write_manifest(prod, timeline=_timeline)
+            bus.emit("production_failed", "showrunner", reason=reason)
             return prod
 
         # --- quality gate: drop below-threshold shots from the final cut ---
@@ -271,6 +285,10 @@ class Showrunner:
                     )
                 except Exception:
                     _log.warning("could not extract anchor frame from shot %d", shot.index)
+            except QuotaExhausted as exc:
+                _log.error("STOPPING: %s", exc)
+                self._quota_exhausted = True
+                break
             except Exception:
                 _log.error("shot %d failed — skipping:\n%s", shot.index, traceback.format_exc())
                 continue
@@ -308,6 +326,9 @@ class Showrunner:
                 try:
                     clip, audio = future.result()
                     results[shot.index] = (clip, audio)
+                except QuotaExhausted as exc:
+                    _log.error("STOPPING: %s", exc)
+                    self._quota_exhausted = True
                 except Exception:
                     _log.error("shot %d failed in parallel — skipping:\n%s",
                                shot.index, traceback.format_exc())
