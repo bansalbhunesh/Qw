@@ -249,6 +249,8 @@ function renderEvent(ev) {
     if (ev.estimated_cost_usd > 0) body += `<div class="dim" style="margin-top:0.3rem">Est. spend: $${ev.estimated_cost_usd.toFixed(2)} / $${ev.max_spend_usd.toFixed(2)}</div>`;
   } else if (ev.kind === 'score_complete') {
     body = `<strong>Score composed:</strong> mood=${ev.mood}, intensity=${(ev.intensity||0).toFixed(1)}`;
+  } else if (ev.kind === 'parallel_render_start') {
+    body = `<strong>Parallel render:</strong> ${ev.n_shots} shots with ${ev.workers} workers (no-consistency mode)`;
   } else if (ev.kind === 'quality_gate') {
     body = `<strong>Quality gate:</strong> kept ${ev.kept} clips, dropped ${ev.dropped} scoring below ${(ev.threshold||0).toFixed(1)}`;
   } else if (ev.kind === 'production_complete') {

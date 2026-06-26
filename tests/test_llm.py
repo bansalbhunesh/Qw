@@ -63,3 +63,31 @@ def test_token_estimation_with_images():
         ]},
     ])
     assert client.governor.state.tokens_used > 0
+
+
+class TestLoadsLenientEdgeCases:
+    def test_nested_json(self):
+        raw = '{"a": {"b": [1, 2, 3]}, "c": "d"}'
+        assert _loads_lenient(raw) == {"a": {"b": [1, 2, 3]}, "c": "d"}
+
+    def test_json_with_whitespace(self):
+        raw = '  \n  {"a": 1}  \n  '
+        assert _loads_lenient(raw) == {"a": 1}
+
+    def test_markdown_json_block(self):
+        raw = '```json\n{"key": "value"}\n```'
+        assert _loads_lenient(raw) == {"key": "value"}
+
+    def test_json_embedded_in_explanation(self):
+        raw = 'Here is your answer:\n{"result": true}\nHope this helps!'
+        assert _loads_lenient(raw) == {"result": True}
+
+
+def test_chat_json_metering():
+    """All chat_json calls should be metered by the Governor."""
+    client = _client()
+    client.chat_json("test_stage", Tier.GRUNT, [
+        {"role": "user", "content": "Write a 3-beat micro-drama beat sheet."},
+    ])
+    summary = client.governor.summary()
+    assert summary["tokens_by_stage"].get("test_stage", 0) > 0

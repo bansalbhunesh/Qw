@@ -146,6 +146,7 @@ class BudgetGovernor:
             "estimated_cost_usd": self.estimated_cost_usd,
             "max_spend_usd": self.budget.max_spend_usd,
             "tokens_by_stage": self._tokens_by_stage(),
+            "tokens_by_tier": self._tokens_by_tier(),
         }
 
     def _tokens_by_stage(self) -> dict[str, int]:
@@ -153,6 +154,13 @@ class BudgetGovernor:
         for e in self.entries:
             if e.kind == "llm":
                 out[e.stage] = out.get(e.stage, 0) + e.total_tokens
+        return out
+
+    def _tokens_by_tier(self) -> dict[str, int]:
+        out: dict[str, int] = {}
+        for e in self.entries:
+            if e.kind == "llm" and e.tier:
+                out[e.tier] = out.get(e.tier, 0) + e.total_tokens
         return out
 
     def flush(self) -> None:

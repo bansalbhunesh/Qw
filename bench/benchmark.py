@@ -32,6 +32,7 @@ class Result:
     tokens: int
     clips: int
     retakes: int
+    tokens_by_tier: dict | None = None
 
     @property
     def quality_per_1k(self) -> float:
@@ -63,9 +64,11 @@ def run_benchmark(premises: list[str], outdir: Path) -> list[Result]:
             prod = show.run(premise)
             overall = _judge(prod.final_path)
             st = show.governor.state
+            summary = show.governor.summary()
             results.append(Result(
                 premise=premise, system=system, overall=overall,
                 tokens=st.tokens_used, clips=st.clips_used, retakes=st.retakes_used,
+                tokens_by_tier=summary.get("tokens_by_tier"),
             ))
     return results
 
@@ -83,6 +86,19 @@ def render_report(results: list[Result]) -> str:
             f"{r.clips} | {r.retakes} | {r.quality_per_1k:.2f} |"
         )
     lines += ["", _headline(results)]
+
+    auteur_results = [r for r in results if r.system == "auteur"]
+    if auteur_results and any(r.tokens_by_tier for r in auteur_results):
+        lines += ["", "### Model routing (Auteur only)", ""]
+        lines += ["| Tier | Model | Tokens |", "|---|---|---|"]
+        tier_totals: dict[str, int] = {}
+        for r in auteur_results:
+            for tier, tok in (r.tokens_by_tier or {}).items():
+                tier_totals[tier] = tier_totals.get(tier, 0) + tok
+        tier_names = {"grunt": "qwen-flash", "creative": "qwen-max", "vision": "qwen-vl-max"}
+        for tier, tok in sorted(tier_totals.items(), key=lambda x: -x[1]):
+            lines.append(f"| {tier} | {tier_names.get(tier, tier)} | {tok:,} |")
+
     return "\n".join(lines)
 
 

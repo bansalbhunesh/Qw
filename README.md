@@ -100,7 +100,7 @@ OSS asset storage) and the proof-of-deployment file.
 | **Narrative ability** | Structured beat-sheet screenwriting with importance-weighted beats, not one-shot prompting |
 | **Multimodal orchestration** | Qwen-Max + Qwen-VL + Wan + CosyVoice TTS coordinated in a 4-axis critic loop with cross-shot continuity scoring |
 | **Output quality under a token budget** | The Budget Governor — with a benchmark proving 32% quality improvement at 5.3% budget utilization |
-| **Production-readiness** | Alibaba Cloud (ECS + OSS + DashScope), token ledger, eval harness, 47 tests, live web viewer |
+| **Production-readiness** | Alibaba Cloud (ECS + OSS + DashScope), token ledger, eval harness, 64 tests, live web viewer |
 | **Innovation** | A self-critiquing, budget-aware director with cross-shot visual continuity scoring — not a linear pipeline |
 
 ---
@@ -174,8 +174,10 @@ Working today:
 - Crossfade assembly with Windows-safe concat-filter fallback
 - Resilient production: voice failures never discard clips, partial-shot recovery
 - Production report card in the manifest (quality arc, budget utilization, cost summary)
+- Parallel shot rendering when `--no-consistency` is set (wall-clock speedup with thread pool)
+- Tier-level token breakdown: proves model routing works (grunt/creative/vision spend)
 - Live web viewer with real-time critic verdicts, retake decisions, and budget status bars
-- 47 passing tests, naive baseline, benchmark harness
+- 64 passing tests, naive baseline, benchmark harness
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design, module map, and roadmap.
 

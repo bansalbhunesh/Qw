@@ -24,7 +24,7 @@ Budget Governor (`auteur/budget.py`) is the optimizer's accountant; the agents a
 | `auteur/agents/cinematographer.py` | Wan t2v/i2v jobs, i2v continuity chaining with t2v fallback, download verification |
 | `auteur/agents/sound.py` | CosyVoice TTS (character voices) + procedural mood-keyed score bed |
 | `auteur/agents/editor.py` | Qwen-VL critic loop + audio overlay + crossfade assembly + score mix |
-| `auteur/agents/showrunner.py` | Orchestrator — budgeted control loop, partial-failure recovery, manifest |
+| `auteur/agents/showrunner.py` | Orchestrator — budgeted control loop, parallel rendering, partial-failure recovery, manifest |
 | `auteur/baseline.py` | NaiveShowrunner — the A/B baseline (no routing, no caching, no critic) |
 | `auteur/viewer.py` | Live web viewer — SSE streaming of production events for the demo |
 | `auteur/cli.py` | CLI entrypoint with structured output |
@@ -73,6 +73,8 @@ flush(ledger.json, manifest.json)
    USD ceiling (`--max-spend-usd`): it stops rendering before a clip would exceed the cap, and
    `--estimate` previews best/worst-case cost without rendering. Clips are priced per resolution
    (`clip_price_usd`); mock runs price at zero (no real spend).
+7. **Tier-level reporting** — the ledger and CLI output show token spend broken down by model tier
+   (grunt/creative/vision), proving the Governor actively routes cheap models for cheap work.
 
 ## 4-axis critic loop (the "multimodal orchestration" criterion)
 
@@ -89,6 +91,18 @@ The `visual_continuity` axis is the key innovation: the critic receives frames f
 current shot AND the previous shot, so it can catch character drift, wardrobe changes, or color
 grade discontinuities between adjacent shots. The first shot scores 8/10 by default (no prior
 reference). This closes a multimodal feedback loop that no linear pipeline can achieve.
+
+## Parallel shot rendering
+
+When visual continuity is disabled (`--no-consistency`), Auteur renders shots concurrently
+via a `ThreadPoolExecutor` (up to 4 workers). This is a wall-clock speedup for live renders
+where sequential rendering would mean minutes of idle waiting per shot. The parallel path
+still runs the full critic loop per shot; the only difference is that shots aren't chained
+via image-to-video. Results are reassembled in script order for final assembly.
+
+When continuity IS enabled (the default), shots render sequentially so each shot's final frame
+can seed the next via image-to-video. This is the architectural separation between "fast" and
+"consistent" — both paths share the same `_produce_shot()` core.
 
 ## Visual continuity (the hardest problem in AI short drama)
 
@@ -148,7 +162,7 @@ Two layers, both metered as first-class production stages:
 - [x] Dockerfile with system ffmpeg + health check
 - [x] Visual continuity: i2v frame-chaining for cross-shot character consistency (+ t2v fallback)
 - [x] Score: AI-directed mood + procedural music bed mixed under dialogue
-- [x] Test suite: 47 tests (budget, pipeline, media, sound, retry, LLM, benchmark)
+- [x] Test suite: 64 tests (budget, pipeline, media, sound, retry, LLM, benchmark)
 - [x] Real-money spend guardrail: per-resolution clip pricing, hard USD cap, --estimate dry-run
 - [x] Default to wan2.2-t2v-plus (free-tier available); wan2.7 paywalled via FreeTierOnly 403
 - [x] Voice isolation: TTS failures no longer discard rendered clips
@@ -164,6 +178,8 @@ Two layers, both metered as first-class production stages:
 - [x] Writer prompt engineering: contrast, specificity, subtext principles for stronger micro-dramas
 - [x] Benchmark headline reframed: quality improvement + budget fraction (not misleading per-token ratio)
 - [x] Quality gate: `--quality-gate` CLI flag to drop below-threshold shots from the final cut
+- [x] Parallel shot rendering: concurrent workers when `--no-consistency` is set (wall-clock speedup)
+- [x] Tier-level token breakdown in ledger, CLI, and benchmark report (proves model routing works)
 - [ ] Run the benchmark live; populate README table with real scores
 - [ ] Deploy to Alibaba Cloud ECS; record proof-of-deployment video
 - [ ] 3-min demo video + architecture diagram export + blog post

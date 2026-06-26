@@ -140,6 +140,94 @@ def test_quality_gate_drops_low_scoring_shots(tmp_path):
     assert Path(prod.final_path).exists()
 
 
+def test_parallel_render_mode(tmp_path):
+    """With consistency disabled, shots should render (potentially in parallel)."""
+    cfg = _cfg(shots=3)
+    cfg.consistency = False
+    show = Showrunner(cfg, workdir=tmp_path)
+    prod = show.run("Two strangers share an umbrella in a monsoon")
+    assert Path(prod.final_path).exists()
+    assert show.governor.state.clips_used >= 3
+    # No anchor frames should exist in parallel mode
+    anchors = list(Path(tmp_path).glob("anchor_*.png"))
+    assert len(anchors) == 0
+
+
+def test_manifest_includes_timeline(tmp_path):
+    show = Showrunner(_cfg(shots=3), workdir=tmp_path)
+    prod = show.run("A retired astronaut tends a garden that orbits Earth")
+    import json
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    timeline = manifest.get("timeline", [])
+    assert len(timeline) >= 3  # at least script, shots_done, assembly
+    phases = [t["phase"] for t in timeline]
+    assert "script" in phases
+    assert "assembly" in phases
+    assert all(t["elapsed_s"] >= 0 for t in timeline)
+
+
+def test_manifest_includes_score_plan(tmp_path):
+    show = Showrunner(_cfg(shots=3), workdir=tmp_path)
+    prod = show.run("A barista makes coffee for a customer who's been dead for weeks")
+    import json
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    score_plan = manifest.get("score", {})
+    assert "mood" in score_plan
+    assert "intensity" in score_plan
+
+
+def test_budget_tokens_by_tier(tmp_path):
+    """Budget summary should include tier-level token breakdown."""
+    show = Showrunner(_cfg(shots=3), workdir=tmp_path)
+    show.run("A violin maker hears his dead wife in the wood grain")
+    summary = show.governor.summary()
+    by_tier = summary.get("tokens_by_tier", {})
+    assert len(by_tier) >= 1
+    assert all(isinstance(v, int) and v > 0 for v in by_tier.values())
+
+
+def test_style_bible_has_characters_and_look(tmp_path):
+    """Style Bible should have characters with descriptions and a look."""
+    show = Showrunner(_cfg(shots=3), workdir=tmp_path)
+    prod = show.run("A chess prodigy plays her first game against a machine")
+    assert prod.style is not None
+    assert len(prod.style.characters) >= 1
+    assert all(c.name and c.description for c in prod.style.characters)
+    assert prod.style.look
+
+
+def test_shots_have_importance_weights(tmp_path):
+    """Every shot should inherit an importance weight from its beat."""
+    show = Showrunner(_cfg(shots=4), workdir=tmp_path)
+    prod = show.run("A thief returns what she stole twenty years later")
+    assert prod.script is not None
+    for shot in prod.script.shots:
+        assert 0.0 <= shot.importance <= 1.0
+    # The first shot (hook) should have the highest importance
+    assert prod.script.shots[0].importance >= prod.script.shots[-1].importance
+
+
+def test_empty_dialogue_gets_no_audio(tmp_path):
+    """Shots with empty dialogue shouldn't produce audio artifacts."""
+    from auteur.agents.sound import Sound
+    from auteur.budget import BudgetGovernor
+    from auteur.config import BudgetConfig
+    sound = Sound(BudgetGovernor(BudgetConfig()))
+    result = sound.voice_line("", None, str(tmp_path / "empty.wav"))
+    assert result is None
+
+
+def test_multiple_premises_produce_independent_outputs(tmp_path):
+    """Each premise should produce a separate, independent production."""
+    show1 = Showrunner(_cfg(shots=2), workdir=tmp_path / "p1")
+    show2 = Showrunner(_cfg(shots=2), workdir=tmp_path / "p2")
+    prod1 = show1.run("A pilot lands on the wrong continent")
+    prod2 = show2.run("A baker burns her last loaf on purpose")
+    assert Path(prod1.final_path).exists()
+    assert Path(prod2.final_path).exists()
+    assert prod1.final_path != prod2.final_path
+
+
 def test_naive_baseline_runs(tmp_path):
     naive = NaiveShowrunner(_cfg(shots=3), workdir=tmp_path)
     prod = naive.run("A street vendor and the regular who never speaks")

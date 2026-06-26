@@ -5,7 +5,7 @@ The production-grade control flow:
   2. Art Director builds the cached Style Bible.
   3. For each shot (in importance-descending order for retake priority):
      a. Cinematographer renders one clip (if clip budget allows).
-     b. Critic (Qwen-VL) scores it on 3 axes.
+     b. Critic (Qwen-VL) scores it on 4 axes (incl. cross-shot continuity).
      c. If it fails AND the Governor rules it worth a reshoot → one retake with the critic's
         fix injected into the prompt.
      d. Sound voices dialogue for the shot.
@@ -14,12 +14,17 @@ The production-grade control flow:
 
 Resilience: individual shot failures are caught and logged. A production ships whatever it has —
 a partially-rendered short is better than a crash.
+
+Parallelism: when visual continuity is disabled (--no-consistency), shots are rendered
+concurrently via a thread pool for wall-clock speedup. With continuity enabled, shots are
+sequential so each shot's final frame can seed the next via image-to-video.
 """
 
 from __future__ import annotations
 
 import json
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from pathlib import Path
 
@@ -144,42 +149,10 @@ class Showrunner:
                              for c in prod.style.characters])
 
         # --- phase 3: production (render + critique + voice per shot) ---
-        clip_paths: list[str] = []
-        audio_paths: list[str | None] = []
-        anchor: str | None = None  # last frame of the previous shot — seeds visual continuity
-        prev_frame_uris: list[str] | None = None  # previous shot's frames for critic continuity
-
-        for shot in prod.script.shots:
-            if not self.governor.can_render_clip():
-                reason = ("spend cap $%.2f reached (est. $%.2f spent)"
-                          % (self.cfg.budget.max_spend_usd, self.governor.estimated_cost_usd)
-                          if self.governor._would_exceed_cost()
-                          else "clip count budget exhausted")
-                _log.warning("%s at shot %d — shipping what we have", reason, shot.index)
-                break
-
-            try:
-                clip, audio = self._produce_shot(
-                    prod, shot, reference_image=anchor,
-                    prev_frame_uris=prev_frame_uris,
-                )
-                clip_paths.append(clip)
-                audio_paths.append(audio)
-                # Extract frames for the next shot's continuity scoring
-                try:
-                    prev_frame_uris = self.editor.sample_frames(clip, n=1)
-                except Exception:
-                    prev_frame_uris = None
-                if self.cfg.consistency:
-                    try:
-                        anchor = media.extract_last_frame(
-                            clip, self.workdir / f"anchor_{shot.index}.png",
-                        )
-                    except Exception:
-                        _log.warning("could not extract anchor frame from shot %d", shot.index)
-            except Exception:
-                _log.error("shot %d failed — skipping:\n%s", shot.index, traceback.format_exc())
-                continue
+        if self.cfg.consistency:
+            clip_paths, audio_paths = self._produce_sequential(prod)
+        else:
+            clip_paths, audio_paths = self._produce_parallel(prod)
 
         if not clip_paths:
             _log.error("no clips rendered — cannot assemble")
@@ -251,6 +224,90 @@ class Showrunner:
             self.governor.state.retakes_used, self.governor.budget.max_retakes,
         )
         return prod
+
+    def _produce_sequential(self, prod: Production) -> tuple[list[str], list[str | None]]:
+        """Render shots one at a time with visual continuity chaining."""
+        clip_paths: list[str] = []
+        audio_paths: list[str | None] = []
+        anchor: str | None = None
+        prev_frame_uris: list[str] | None = None
+
+        for shot in prod.script.shots:
+            if not self.governor.can_render_clip():
+                reason = ("spend cap $%.2f reached (est. $%.2f spent)"
+                          % (self.cfg.budget.max_spend_usd, self.governor.estimated_cost_usd)
+                          if self.governor._would_exceed_cost()
+                          else "clip count budget exhausted")
+                _log.warning("%s at shot %d — shipping what we have", reason, shot.index)
+                break
+
+            try:
+                clip, audio = self._produce_shot(
+                    prod, shot, reference_image=anchor,
+                    prev_frame_uris=prev_frame_uris,
+                )
+                clip_paths.append(clip)
+                audio_paths.append(audio)
+                try:
+                    prev_frame_uris = self.editor.sample_frames(clip, n=1)
+                except Exception:
+                    prev_frame_uris = None
+                try:
+                    anchor = media.extract_last_frame(
+                        clip, self.workdir / f"anchor_{shot.index}.png",
+                    )
+                except Exception:
+                    _log.warning("could not extract anchor frame from shot %d", shot.index)
+            except Exception:
+                _log.error("shot %d failed — skipping:\n%s", shot.index, traceback.format_exc())
+                continue
+
+        return clip_paths, audio_paths
+
+    def _produce_parallel(self, prod: Production) -> tuple[list[str], list[str | None]]:
+        """Render shots concurrently (no continuity chaining). Wall-clock speedup for live renders."""
+        eligible = []
+        for shot in prod.script.shots:
+            if not self.governor.can_render_clip():
+                reason = ("spend cap $%.2f reached (est. $%.2f spent)"
+                          % (self.cfg.budget.max_spend_usd, self.governor.estimated_cost_usd)
+                          if self.governor._would_exceed_cost()
+                          else "clip count budget exhausted")
+                _log.warning("%s at shot %d — capping parallel batch", reason, shot.index)
+                break
+            eligible.append(shot)
+            self.governor.state.clips_used += 1
+
+        self.governor.state.clips_used -= len(eligible)
+
+        results: dict[int, tuple[str, str | None]] = {}
+        workers = min(len(eligible), 4)
+        _log.info("parallel render: %d shots with %d workers", len(eligible), workers)
+        bus.emit("parallel_render_start", "showrunner", n_shots=len(eligible), workers=workers)
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {
+                pool.submit(self._produce_shot, prod, shot): shot
+                for shot in eligible
+            }
+            for future in as_completed(futures):
+                shot = futures[future]
+                try:
+                    clip, audio = future.result()
+                    results[shot.index] = (clip, audio)
+                except Exception:
+                    _log.error("shot %d failed in parallel — skipping:\n%s",
+                               shot.index, traceback.format_exc())
+
+        clip_paths = []
+        audio_paths: list[str | None] = []
+        for shot in eligible:
+            if shot.index in results:
+                clip, audio = results[shot.index]
+                clip_paths.append(clip)
+                audio_paths.append(audio)
+
+        return clip_paths, audio_paths
 
     def _produce_shot(
         self, prod: Production, shot, *,

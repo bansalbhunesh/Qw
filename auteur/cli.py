@@ -31,7 +31,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", default="out", help="output directory")
     parser.add_argument(
         "--no-consistency", action="store_true",
-        help="disable image-to-video continuity (render every shot independently)",
+        help="disable image-to-video continuity and enable parallel rendering",
     )
     parser.add_argument(
         "--quality-gate", type=float, default=0.0, metavar="SCORE",
@@ -104,11 +104,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"    Spend   : ${summary['estimated_cost_usd']:.2f} / ${summary['max_spend_usd']:.2f}")
 
     if summary.get('tokens_by_stage'):
-        print(f"\n  Token breakdown:")
+        print(f"\n  Token breakdown by stage:")
         for stage, tokens in sorted(summary['tokens_by_stage'].items(),
                                     key=lambda x: -x[1]):
             bar = '#' * max(1, int(tokens / max(1, summary['tokens_used']) * 30))
             print(f"    {stage:16s}  {tokens:>6,}  {bar}")
+
+    if summary.get('tokens_by_tier'):
+        print(f"\n  Token breakdown by tier (model routing):")
+        tier_names = {'grunt': 'qwen-flash', 'creative': 'qwen-max', 'vision': 'qwen-vl-max'}
+        for tier, tokens in sorted(summary['tokens_by_tier'].items(),
+                                   key=lambda x: -x[1]):
+            model = tier_names.get(tier, tier)
+            bar = '#' * max(1, int(tokens / max(1, summary['tokens_used']) * 30))
+            print(f"    {tier:10s} ({model:12s})  {tokens:>6,}  {bar}")
 
     if prod.script:
         scored = [s for s in prod.script.shots if s.critic_score is not None]
