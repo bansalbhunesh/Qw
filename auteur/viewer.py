@@ -31,6 +31,7 @@ def build_viewer_app() -> FastAPI:
         shots: int = 6
         quality_gate: float = 0.0
         max_spend_usd: float = 2.00
+        dynamic_resolution: bool = False
 
     @app.get("/", response_class=HTMLResponse)
     def index():
@@ -45,6 +46,7 @@ def build_viewer_app() -> FastAPI:
             cfg = ProductionConfig(
                 shots=req.shots,
                 quality_gate=req.quality_gate,
+                dynamic_resolution=req.dynamic_resolution,
             )
             cfg.budget.max_spend_usd = req.max_spend_usd
             show = Showrunner(cfg, workdir=workdir)
@@ -102,6 +104,34 @@ def build_viewer_app() -> FastAPI:
             from fastapi import HTTPException
             raise HTTPException(404, "storyboard not generated yet")
         return HTMLResponse(path.read_text())
+
+    @app.get("/api/gallery")
+    def gallery():
+        prods_dir = Path("productions")
+        if not prods_dir.exists():
+            return []
+        entries = []
+        for d in sorted(prods_dir.iterdir(), reverse=True):
+            if not d.is_dir():
+                continue
+            manifest_path = d / "manifest.json"
+            if not manifest_path.exists():
+                continue
+            try:
+                m = json.loads(manifest_path.read_text())
+                entries.append({
+                    "id": d.name,
+                    "premise": m.get("premise", ""),
+                    "logline": m.get("logline", ""),
+                    "shots": len(m.get("shots", [])),
+                    "avg_score": m.get("report_card", {}).get("avg_critic_score", 0),
+                    "tokens": m.get("budget", {}).get("tokens_used", 0),
+                    "has_video": (d / "final.mp4").exists(),
+                    "has_storyboard": (d / "storyboard.html").exists(),
+                })
+            except Exception:
+                continue
+        return entries
 
     return app
 

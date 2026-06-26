@@ -356,10 +356,12 @@ class Showrunner:
         if resolution != self.cfg.resolution:
             dp = Cinematographer(self.governor, resolution=resolution)
 
+        duration = media.shot_duration(shot.importance, beat_label)
+
         # --- render ---
         clip = dp.render(
             prompt, self.workdir / f"shot_{shot.index}.mp4", index=shot.index,
-            reference_image=reference_image,
+            reference_image=reference_image, duration=duration,
         )
 
         # --- critique (with cross-shot continuity when previous frames available) ---

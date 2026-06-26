@@ -48,18 +48,24 @@ class Cinematographer:
         index: int = 0,
         reference_image: str | None = None,
         image_url: str | None = None,
+        duration: float = 5.0,
     ) -> str:
         """Render one shot to a local clip.
 
         If `reference_image` (a local image path) or `image_url` (a public URL) is given,
         renders image-to-video (visual continuity from the previous shot). If that i2v render
         fails for any reason, it falls back to plain text-to-video so a production never stalls.
+
+        `duration` controls target clip length (3-8s). Used for shot pacing — hooks and
+        climaxes get longer screen time than transitional beats.
         """
         if not self.governor.can_render_clip():
             raise RuntimeError("clip budget exhausted")
 
+        self._duration = max(3.0, min(8.0, duration))
+
         if is_mock():
-            path = media.make_placeholder_clip(out_path, index=index, seconds=4)
+            path = media.make_placeholder_clip(out_path, index=index, seconds=self._duration)
             self.governor.record_video(STAGE, "mock-wan", clips=1, note=prompt[:80])
             return path
 
@@ -90,10 +96,11 @@ class Cinematographer:
     def _render_with(
         self, model: str, prompt: str, out_path: str | Path, index: int, image_url: str | None,
     ) -> str:
-        _log.info("rendering shot %d with %s (%d chars prompt)", index, model, len(prompt))
+        duration = getattr(self, "_duration", 5.0)
+        _log.info("rendering shot %d with %s (%d chars, %.1fs)", index, model, len(prompt), duration)
 
         def _do_render():
-            task_id = self._create_task(model, prompt, image_url)
+            task_id = self._create_task(model, prompt, image_url, duration=duration)
             url = self._poll(task_id)
             return self._download(url, out_path)
 
@@ -148,11 +155,12 @@ class Cinematographer:
     def _auth_headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {require_api_key()}"}
 
-    def _create_task(self, model: str, prompt: str, image_url: str | None) -> str:
+    def _create_task(self, model: str, prompt: str, image_url: str | None,
+                     duration: float = 5.0) -> str:
         payload: dict = {
             "model": model,
             "input": {"prompt": prompt},
-            "parameters": {"resolution": self.resolution},
+            "parameters": {"resolution": self.resolution, "duration": round(duration, 1)},
         }
         if image_url:
             payload["input"]["img_url"] = image_url
