@@ -1,0 +1,41 @@
+version: "3.9"
+
+services:
+  auteur:
+    build: .
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      - OSS_ACCESS_KEY_ID=${OSS_ACCESS_KEY_ID:-}
+      - OSS_ACCESS_KEY_SECRET=${OSS_ACCESS_KEY_SECRET:-}
+      - OSS_BUCKET=${OSS_BUCKET:-}
+      - OSS_ENDPOINT=${OSS_ENDPOINT:-oss-ap-southeast-1.aliyuncs.com}
+      - AUTEUR_MOCK=${AUTEUR_MOCK:-0}
+    volumes:
+      - productions:/app/productions
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  viewer:
+    build: .
+    command: ["python", "-m", "auteur.viewer"]
+    ports:
+      - "${VIEWER_PORT:-8080}:8080"
+    environment:
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      - AUTEUR_MOCK=${AUTEUR_MOCK:-0}
+      - VIEWER_PORT=8080
+    volumes:
+      - productions:/app/productions
+    restart: unless-stopped
+    depends_on:
+      auteur:
+        condition: service_healthy
+
+volumes:
+  productions:

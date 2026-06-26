@@ -184,6 +184,25 @@ projected best/worst-case cost without rendering anything. Default model is `wan
 `scripts/probe_wan.py` is a standalone diagnostic that probes the video endpoint directly and
 reports which Wan model names your account can call — useful for a fast 403/quota check.
 
+**Pre-flight diagnostic.** Before going live, validate the full pipeline:
+
+```bash
+python scripts/diagnose.py    # checks ffmpeg, API key, models, runs a test production
+```
+
+## Deploy
+
+One-command deployment with Docker Compose:
+
+```bash
+cp .env.example .env          # add your DashScope key
+docker compose up -d           # API on :8000, viewer on :8080
+```
+
+The API serves at `/produce` (POST), `/healthz` (GET), and each production's artifacts at
+`/productions/{id}/final.mp4`, `/productions/{id}/storyboard.html`, etc.
+The viewer at `:8080` streams productions in real time via SSE.
+
 ## Status
 
 **Live-validated pipeline.** Full end-to-end productions run on Alibaba Cloud DashScope with
