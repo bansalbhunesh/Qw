@@ -165,11 +165,14 @@ class MockTransport:
     def _critique(self, text: str) -> str:
         s = _seed("critique", text[-300:]) % 100
         overall = 5.0 + (s % 50) / 10.0
+        has_prev = "PREVIOUS shot" in text or "continuity reference" in text
+        continuity = round(min(10.0, overall + 0.2), 1) if has_prev else 8.0
         fix = "" if overall >= 7.0 else "tighten framing and increase contrast on the subject"
         return json.dumps({
             "prompt_adherence": round(min(10.0, overall + 0.3), 1),
             "character_consistency": round(max(0.0, overall - 0.4), 1),
             "shot_quality": round(overall, 1),
+            "visual_continuity": continuity,
             "overall": round(overall, 1),
             "fix": fix,
         })

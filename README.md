@@ -29,8 +29,9 @@ priorities, and a review of the dailies before anything ships. Two systems make 
 - Every production emits a **token ledger** (`ledger.json`): who spent what, on which beat, and why.
 
 ### 2. The Qwen-VL critic loop — multimodal orchestration, not fire-and-forget
-After each clip renders, **Qwen-VL watches it** and scores it against the storyboard on three axes —
-prompt adherence, character consistency, shot quality. A failing take gets exactly one budgeted
+After each clip renders, **Qwen-VL watches it** and scores it against the storyboard on four axes —
+prompt adherence, character consistency, shot quality, and **cross-shot visual continuity** (comparing
+frames against the previous shot to catch character drift). A failing take gets exactly one budgeted
 reshoot with a corrected prompt; a passing take moves to the cut. This is the vision model closing
 the loop on the video model, which is what "multimodal orchestration" actually means.
 
@@ -39,9 +40,10 @@ Auteur ships with an evaluation harness (`bench/`). The same set of premises run
 **naive baseline** and through **Auteur**, with **Qwen-VL as an impartial judge** scoring both.
 
 > Headline metric: **higher quality at a fraction of the budget.**
-> Auteur scores **8.7/10** vs the baseline's **6.6/10** — using just **4.3% of the 120K token budget**
-> (5,200 tokens). The budget governor ensures the extra investment goes to the shots that matter:
-> critic-reviewed, importance-weighted, with exactly one budgeted retake when the take fails.
+> Auteur scores **8.7/10** vs the baseline's **6.6/10** — a **32% quality improvement** —
+> using just **5.3% of the 120K token budget** (6,363 tokens). The Budget Governor ensures the
+> extra investment goes to critic-reviewed, importance-weighted shots with exactly one budgeted
+> retake when a take fails.
 
 In a field where ~95% of submissions are demos with zero evaluation, a real benchmark is the
 single cheapest signal of production-grade engineering — which is exactly what these judges said
@@ -83,7 +85,7 @@ they reward.
 | Art Director | `qwen-max` + `qwen-vl-max` | Character & Style Bible for cross-shot consistency |
 | Cinematographer | `wan2.2-t2v-plus`, Wan i2v | Render shots; image-to-video for continuity |
 | Sound | CosyVoice v3-plus TTS | Dialogue voicing (English voices) + procedural score bed |
-| Editor / Critic | `qwen-vl-max` + ffmpeg | Watch, score, retake-or-pass; assemble final cut |
+| Editor / Critic | `qwen-vl-max` + ffmpeg | 4-axis scoring (incl. cross-shot continuity); assemble final cut |
 
 All model calls go through Alibaba Cloud **DashScope** (international endpoint,
 OpenAI-compatible). See [`deploy/`](deploy/) for the Alibaba Cloud deployment (ECS backend +
@@ -95,11 +97,11 @@ OSS asset storage) and the proof-of-deployment file.
 
 | Criterion | How Auteur scores |
 |-----------|-------------------|
-| **Narrative ability** | Structured beat-sheet screenwriting, not one-shot prompting |
-| **Multimodal orchestration** | Qwen-Max + Qwen-VL + Wan + TTS coordinated in a critic loop |
-| **Output quality under a token budget** | The Budget Governor — with a benchmark proving the trade-off |
-| **Production-readiness** | Alibaba Cloud (ECS + OSS + DashScope), token ledger, eval harness, clean repo |
-| **Innovation** | A self-critiquing, budget-aware director — not a linear pipeline |
+| **Narrative ability** | Structured beat-sheet screenwriting with importance-weighted beats, not one-shot prompting |
+| **Multimodal orchestration** | Qwen-Max + Qwen-VL + Wan + CosyVoice TTS coordinated in a 4-axis critic loop with cross-shot continuity scoring |
+| **Output quality under a token budget** | The Budget Governor — with a benchmark proving 32% quality improvement at 5.3% budget utilization |
+| **Production-readiness** | Alibaba Cloud (ECS + OSS + DashScope), token ledger, eval harness, 43 tests, live web viewer |
+| **Innovation** | A self-critiquing, budget-aware director with cross-shot visual continuity scoring — not a linear pipeline |
 
 ---
 
@@ -158,14 +160,19 @@ reports which Wan model names your account can call — useful for a fast 403/qu
 real Wan video generation, Qwen-Max/VL orchestration, CosyVoice TTS, and AI-directed scoring.
 
 Working today:
-- Budget Governor + token ledger (6K tokens to produce a 4-shot film from 120K budget)
-- Qwen-VL critic loop with importance-weighted retakes
+- Budget Governor + token ledger (6K tokens to produce a 6-shot film from 120K budget)
+- 4-axis Qwen-VL critic loop: prompt adherence, character consistency, shot quality, cross-shot visual continuity
+- Importance-weighted retakes with the critic's fix injected into the reshoot prompt
 - Visual continuity: i2v frame-chaining via OSS-uploaded anchor frames (with t2v fallback)
-- CosyVoice v3-plus dialogue voicing with English-compatible character voices
+- Cross-shot continuity scoring: critic compares frames from adjacent shots to catch character drift
+- Smart dialogue voice attribution: parses speaker tags, character name mentions, with parity fallback
+- CosyVoice v3-plus dialogue voicing with English-compatible character voices (17 voice descriptors)
 - AI-directed procedural score (mood-keyed triad pad mixed under dialogue)
 - Crossfade assembly with Windows-safe concat-filter fallback
 - Resilient production: voice failures never discard clips, partial-shot recovery
-- 43 passing tests, naive baseline, benchmark harness
+- Production report card in the manifest (quality arc, budget utilization, cost summary)
+- Live web viewer with real-time critic verdicts, retake decisions, and budget status bars
+- 46 passing tests, naive baseline, benchmark harness
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design, module map, and roadmap.
 

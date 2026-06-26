@@ -38,16 +38,19 @@ Budget Governor (`auteur/budget.py`) is the optimizer's accountant; the agents a
 write(premise) -> script (beats carry importance + tone)
 build_bible(script) -> StyleBible (cached once)
 anchor = None                                     # previous shot's final frame
+prev_frames = None                                # previous shot's frames for critic
 for shot in shots:
     if not clip_budget: break
     try:
         prompt = inject(bible, shot.prompt)
         clip = wan.render(prompt, reference=anchor)  # i2v continuity, t2v fallback, retried
         frames = extract_frames(clip)             # ffmpeg -> data URIs
-        score = qwen_vl.critique(shot, frames)    # 3-axis review
+        score = qwen_vl.critique(shot, frames,    # 4-axis review (incl. cross-shot continuity)
+                                 prev_frames)
         if governor.should_retake(score, shot.importance):
             clip = wan.render(prompt + critic.fix, reference=anchor)  # exactly one reshoot
-        voice = cosyvoice.voice(shot.dialogue)
+        voice = cosyvoice.voice(shot.dialogue)    # smart speaker attribution
+        prev_frames = extract_frames(clip, n=1)   # feed next critic
         anchor = extract_last_frame(clip)         # seed continuity for the next shot
         keep(clip, voice)
     except:
@@ -70,6 +73,22 @@ flush(ledger.json, manifest.json)
    USD ceiling (`--max-spend-usd`): it stops rendering before a clip would exceed the cap, and
    `--estimate` previews best/worst-case cost without rendering. Clips are priced per resolution
    (`clip_price_usd`); mock runs price at zero (no real spend).
+
+## 4-axis critic loop (the "multimodal orchestration" criterion)
+
+The critic scores each rendered clip on four axes, not three:
+
+| Axis | What it measures |
+|------|-----------------|
+| **prompt_adherence** | Does the rendered image match the intended shot? (composition, action, setting) |
+| **character_consistency** | Do characters look as described? (age, clothing, features) |
+| **shot_quality** | Cinematic quality — lighting, focus, framing, mood |
+| **visual_continuity** | Does this shot feel like it belongs in the same film as the previous shot? |
+
+The `visual_continuity` axis is the key innovation: the critic receives frames from BOTH the
+current shot AND the previous shot, so it can catch character drift, wardrobe changes, or color
+grade discontinuities between adjacent shots. The first shot scores 8/10 by default (no prior
+reference). This closes a multimodal feedback loop that no linear pipeline can achieve.
 
 ## Visual continuity (the hardest problem in AI short drama)
 
@@ -129,7 +148,7 @@ Two layers, both metered as first-class production stages:
 - [x] Dockerfile with system ffmpeg + health check
 - [x] Visual continuity: i2v frame-chaining for cross-shot character consistency (+ t2v fallback)
 - [x] Score: AI-directed mood + procedural music bed mixed under dialogue
-- [x] Test suite: 43 tests (budget, pipeline, media, sound, retry, LLM, benchmark)
+- [x] Test suite: 46 tests (budget, pipeline, media, sound, retry, LLM, benchmark)
 - [x] Real-money spend guardrail: per-resolution clip pricing, hard USD cap, --estimate dry-run
 - [x] Default to wan2.2-t2v-plus (free-tier available); wan2.7 paywalled via FreeTierOnly 403
 - [x] Voice isolation: TTS failures no longer discard rendered clips
@@ -138,6 +157,12 @@ Two layers, both metered as first-class production stages:
 - [x] TTS voice fallback fix: default to English-compatible `longshu` (was Chinese-only `longxiaochun`)
 - [x] Expanded voice descriptor map: 17 Art Director voice types → CosyVoice ID mapping
 - [x] Mock benchmark differentiation: critic/judge seed on shot-specific content, not system prompt
+- [x] 4-axis critic: cross-shot visual continuity scoring (prev shot frames → critic for drift detection)
+- [x] Smart dialogue voice attribution: speaker tag parsing, character name matching, parity fallback
+- [x] Production report card in manifest (quality arc, budget utilization, cost summary)
+- [x] Enhanced viewer: real-time critic verdicts (4-axis bars), retake decisions, budget status
+- [x] Writer prompt engineering: contrast, specificity, subtext principles for stronger micro-dramas
+- [x] Benchmark headline reframed: quality improvement + budget fraction (not misleading per-token ratio)
 - [ ] Run the benchmark live; populate README table with real scores
 - [ ] Deploy to Alibaba Cloud ECS; record proof-of-deployment video
 - [ ] 3-min demo video + architecture diagram export + blog post

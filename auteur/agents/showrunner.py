@@ -139,6 +139,7 @@ class Showrunner:
         clip_paths: list[str] = []
         audio_paths: list[str | None] = []
         anchor: str | None = None  # last frame of the previous shot — seeds visual continuity
+        prev_frame_uris: list[str] | None = None  # previous shot's frames for critic continuity
 
         for shot in prod.script.shots:
             if not self.governor.can_render_clip():
@@ -150,9 +151,17 @@ class Showrunner:
                 break
 
             try:
-                clip, audio = self._produce_shot(prod, shot, reference_image=anchor)
+                clip, audio = self._produce_shot(
+                    prod, shot, reference_image=anchor,
+                    prev_frame_uris=prev_frame_uris,
+                )
                 clip_paths.append(clip)
                 audio_paths.append(audio)
+                # Extract frames for the next shot's continuity scoring
+                try:
+                    prev_frame_uris = self.editor.sample_frames(clip, n=1)
+                except Exception:
+                    prev_frame_uris = None
                 if self.cfg.consistency:
                     try:
                         anchor = media.extract_last_frame(
@@ -172,6 +181,7 @@ class Showrunner:
 
         # --- phase 4: assembly ---
         _log.info("assembling %d clips into final cut", len(clip_paths))
+        bus.emit("budget_update", "showrunner", **self.governor.summary())
         bus.emit("assembly_start", "editor", n_clips=len(clip_paths))
         silent_cut = self.editor.assemble(
             clip_paths, self.workdir / "final_nomusic.mp4", audio_paths=audio_paths,
@@ -210,12 +220,15 @@ class Showrunner:
         return prod
 
     def _produce_shot(
-        self, prod: Production, shot, *, reference_image: str | None = None,
+        self, prod: Production, shot, *,
+        reference_image: str | None = None,
+        prev_frame_uris: list[str] | None = None,
     ) -> tuple[str, str | None]:
         """Render, critique, optionally reshoot, and voice one shot. Returns (clip_path, audio_path).
 
         `reference_image` is the previous shot's final frame, used to seed image-to-video for
-        visual continuity. The Cinematographer falls back to text-to-video if i2v fails.
+        visual continuity. `prev_frame_uris` are data-URI frames from the previous shot, passed
+        to the critic for cross-shot continuity scoring.
         """
         prompt = ArtDirector.apply(prod.style, shot.video_prompt)
 
@@ -225,9 +238,9 @@ class Showrunner:
             reference_image=reference_image,
         )
 
-        # --- critique ---
+        # --- critique (with cross-shot continuity when previous frames available) ---
         frames = self.editor.sample_frames(clip)
-        review = self.editor.critique(shot, frames)
+        review = self.editor.critique(shot, frames, prev_frame_uris=prev_frame_uris)
         shot.critic_score = float(review.get("overall", 0.0))
 
         # --- conditional reshoot ---
@@ -239,12 +252,16 @@ class Showrunner:
                 "retaking shot %d (score=%.1f, importance=%.1f): %s",
                 shot.index, shot.critic_score, shot.importance, fix[:60],
             )
+            bus.emit("retake_decision", "showrunner",
+                     index=shot.index, score=shot.critic_score,
+                     importance=shot.importance, fix=fix[:80])
             clip = self.dp.render(
                 fixed_prompt, self.workdir / f"shot_{shot.index}_retake.mp4", index=shot.index,
                 reference_image=reference_image,
             )
             shot.retaken = True
-            retake_review = self.editor.critique(shot, self.editor.sample_frames(clip))
+            retake_frames = self.editor.sample_frames(clip)
+            retake_review = self.editor.critique(shot, retake_frames, prev_frame_uris=prev_frame_uris)
             shot.critic_score = float(retake_review.get("overall", shot.critic_score))
 
         shot.clip_path = clip
@@ -294,14 +311,39 @@ class Showrunner:
 
     @staticmethod
     def _voice_for(prod: Production, shot):
-        """Match a shot's dialogue to a character voice from the Bible."""
+        """Match a shot's dialogue to a character voice from the Bible.
+
+        Tries three strategies in order:
+        1. Parse the dialogue for an explicit speaker tag ("MARA: line").
+        2. Scan the dialogue text for a character's name.
+        3. Fall back to shot-index parity (character 0 for even, 1 for odd).
+        """
         if not prod.style or not prod.style.characters:
             return None
-        # For multi-character dialogue we'd parse speaker tags; for now, assign by shot parity
-        # (character 0 for even shots, character 1 for odd — a reasonable heuristic for two-handers).
         chars = prod.style.characters
         if len(chars) == 1:
             return chars[0]
+
+        dialogue = shot.dialogue.strip()
+        if not dialogue:
+            return chars[shot.index % len(chars)]
+
+        # Strategy 1: explicit "NAME:" prefix
+        import re
+        tag_match = re.match(r"^([A-Z][A-Za-z]+)\s*:", dialogue)
+        if tag_match:
+            tag = tag_match.group(1).lower()
+            for c in chars:
+                if c.name.lower() == tag:
+                    return c
+
+        # Strategy 2: character name appears anywhere in the dialogue or description
+        desc_lower = shot.description.lower()
+        for c in chars:
+            if c.name.lower() in dialogue.lower() or c.name.lower() in desc_lower:
+                return c
+
+        # Strategy 3: parity fallback
         return chars[shot.index % len(chars)]
 
     def _write_manifest(self, prod: Production) -> None:
@@ -318,6 +360,7 @@ class Showrunner:
             },
             "score": self._score_plan or {},
             "budget": self.governor.summary(),
+            "report_card": self._report_card(prod),
         }
         if prod.script:
             for s in prod.script.shots:
@@ -334,3 +377,33 @@ class Showrunner:
         path = self.workdir / "manifest.json"
         path.write_text(json.dumps(manifest, indent=2))
         _log.info("manifest -> %s", path)
+
+    def _report_card(self, prod: Production) -> dict:
+        """Generate a summary report card for the production."""
+        if not prod.script:
+            return {}
+        shots = prod.script.shots
+        scored = [s for s in shots if s.critic_score is not None]
+        retaken = [s for s in shots if s.retaken]
+        rendered = [s for s in shots if s.clip_path]
+
+        avg_score = sum(s.critic_score for s in scored) / len(scored) if scored else 0.0
+        min_score = min((s.critic_score for s in scored), default=0.0)
+        max_score = max((s.critic_score for s in scored), default=0.0)
+        budget = self.governor.summary()
+
+        return {
+            "shots_planned": len(shots),
+            "shots_rendered": len(rendered),
+            "shots_retaken": len(retaken),
+            "avg_critic_score": round(avg_score, 2),
+            "min_critic_score": round(min_score, 2),
+            "max_critic_score": round(max_score, 2),
+            "budget_utilization_pct": round(
+                budget["tokens_used"] / max(1, budget["token_budget"]) * 100, 1,
+            ),
+            "clip_utilization_pct": round(
+                budget["clips_used"] / max(1, budget["clip_budget"]) * 100, 1,
+            ),
+            "estimated_cost_usd": budget.get("estimated_cost_usd", 0.0),
+        }

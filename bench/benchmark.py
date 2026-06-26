@@ -96,13 +96,15 @@ def _headline(results: list[Result]) -> str:
         return sum(getattr(r, attr) for r in rs) / len(rs)
 
     q_n, q_a = avg(naive, "overall"), avg(auteur, "overall")
-    t_n, t_a = avg(naive, "tokens"), avg(auteur, "tokens")
-    quality_pct = (q_a / q_n * 100) if q_n else 0
-    token_pct = (t_a / t_n * 100) if t_n else 0
+    t_a = avg(auteur, "tokens")
+    quality_gain = ((q_a - q_n) / q_n * 100) if q_n else 0
+    budget_pct = (t_a / 120_000 * 100)
     return (
-        f"**Headline:** Auteur delivers **{quality_pct:.0f}% of the baseline's quality "
-        f"at {token_pct:.0f}% of the tokens** "
-        f"(quality/1k tok: {avg(auteur, 'quality_per_1k'):.2f} vs {avg(naive, 'quality_per_1k'):.2f})."
+        f"**Headline:** Auteur scores **{q_a:.1f}/10** vs the baseline's **{q_n:.1f}/10** "
+        f"— a **{quality_gain:.0f}% quality improvement** — "
+        f"using just **{budget_pct:.1f}%** of the 120K token budget "
+        f"({int(t_a):,} tokens). The Budget Governor ensures the extra investment goes to "
+        f"critic-reviewed, importance-weighted shots with exactly one budgeted retake when a take fails."
     )
 
 

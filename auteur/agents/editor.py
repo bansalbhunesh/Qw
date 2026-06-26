@@ -1,9 +1,9 @@
 """Editor / Critic — the Qwen-VL review loop plus final assembly.
 
 The critic is the multimodal heart of Auteur: Qwen-VL *watches* a rendered clip (sampled
-frames, passed as data URIs) and scores it against the shot's intent on three axes. The Budget
-Governor then decides whether a failing clip is worth a reshoot. Approved clips are assembled
-with crossfade transitions and optional dialogue overlay.
+frames, passed as data URIs) and scores it against the shot's intent on four axes, including
+cross-shot visual continuity. The Budget Governor then decides whether a failing clip is worth
+a reshoot. Approved clips are assembled with crossfade transitions and optional dialogue overlay.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .. import log, media
 from ..budget import BudgetGovernor
+from ..events import bus
 from ..llm import QwenClient
 from ..models import Shot
 
@@ -26,9 +27,12 @@ Score 0-10 on each axis:
 - prompt_adherence: does the rendered image match what was requested? (composition, action, setting)
 - character_consistency: do characters look as described? (age, clothing, features)
 - shot_quality: cinematic quality — lighting, focus, framing, mood.
+- visual_continuity: does this shot feel like it belongs in the same film as the previous shot? \
+(same characters, same wardrobe, consistent color grade, coherent world). Score 8 if this is the first shot.
 
 Return ONLY valid JSON:
-{"prompt_adherence": n, "character_consistency": n, "shot_quality": n, "overall": n, \
+{"prompt_adherence": n, "character_consistency": n, "shot_quality": n, "visual_continuity": n, \
+"overall": n, \
 "fix": "if overall < 7, write ONE specific, concrete prompt modification to fix the weakest \
 axis. If overall >= 7, empty string."}"""
 
@@ -43,18 +47,33 @@ class Editor:
         frames = media.extract_frames(clip_path, n=n)
         return [media.frame_to_data_uri(f) for f in frames]
 
-    def critique(self, shot: Shot, frame_uris: list[str]) -> dict:
-        """Have Qwen-VL watch sampled frames and score the clip."""
-        content: list[dict] = [
-            {
-                "type": "text",
-                "text": (
-                    f"INTENDED SHOT:\n{shot.description}\n\n"
-                    f"VIDEO PROMPT USED:\n{shot.video_prompt}\n\n"
-                    f"Score the {len(frame_uris)} frames below from the rendered clip."
-                ),
-            },
+    def critique(
+        self,
+        shot: Shot,
+        frame_uris: list[str],
+        prev_frame_uris: list[str] | None = None,
+    ) -> dict:
+        """Have Qwen-VL watch sampled frames and score the clip.
+
+        If prev_frame_uris is provided (frames from the previous shot), the critic also
+        evaluates cross-shot visual continuity — same characters, wardrobe, color grade.
+        """
+        text_parts = [
+            f"INTENDED SHOT:\n{shot.description}\n\n"
+            f"VIDEO PROMPT USED:\n{shot.video_prompt}\n\n"
         ]
+        if prev_frame_uris:
+            text_parts.append(
+                f"The first {len(prev_frame_uris)} image(s) are from the PREVIOUS shot "
+                f"(for continuity reference). The remaining {len(frame_uris)} image(s) are "
+                f"from the CURRENT shot being reviewed.\n\n"
+            )
+        text_parts.append(f"Score the {len(frame_uris)} frames from the rendered clip.")
+
+        content: list[dict] = [{"type": "text", "text": "".join(text_parts)}]
+        if prev_frame_uris:
+            for uri in prev_frame_uris:
+                content.append({"type": "image_url", "image_url": {"url": uri}})
         for uri in frame_uris:
             content.append({"type": "image_url", "image_url": {"url": uri}})
 
@@ -66,15 +85,25 @@ class Editor:
         if isinstance(result, dict):
             overall = float(result.get("overall", 5.0))
             fix = str(result.get("fix", ""))
+            continuity = float(result.get("visual_continuity", 0))
             _log.info(
-                "shot %d critic: overall=%.1f  adherence=%.1f  consistency=%.1f  quality=%.1f%s",
+                "shot %d critic: overall=%.1f  adherence=%.1f  consistency=%.1f  "
+                "quality=%.1f  continuity=%.1f%s",
                 shot.index,
                 overall,
                 float(result.get("prompt_adherence", 0)),
                 float(result.get("character_consistency", 0)),
                 float(result.get("shot_quality", 0)),
+                continuity,
                 f"  fix: {fix[:60]}" if fix else "",
             )
+            bus.emit("critic_verdict", STAGE,
+                     index=shot.index, overall=overall,
+                     prompt_adherence=float(result.get("prompt_adherence", 0)),
+                     character_consistency=float(result.get("character_consistency", 0)),
+                     shot_quality=float(result.get("shot_quality", 0)),
+                     visual_continuity=continuity,
+                     fix=fix[:80])
             return result
 
         _log.warning("critic returned non-dict for shot %d, defaulting", shot.index)

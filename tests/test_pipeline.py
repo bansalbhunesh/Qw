@@ -81,6 +81,56 @@ def test_voice_failure_does_not_discard_clip(tmp_path):
     assert show.governor.state.clips_used >= 3
 
 
+def test_manifest_includes_report_card(tmp_path):
+    show = Showrunner(_cfg(shots=3), workdir=tmp_path)
+    prod = show.run("A musician finds her stolen guitar in a pawn shop")
+    import json
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    rc = manifest.get("report_card", {})
+    assert rc["shots_planned"] == 3
+    assert rc["shots_rendered"] >= 1
+    assert 0.0 <= rc["avg_critic_score"] <= 10.0
+    assert rc["budget_utilization_pct"] > 0
+
+
+def test_critic_scores_include_visual_continuity(tmp_path):
+    """The 4-axis critic should produce visual_continuity scores."""
+    show = Showrunner(_cfg(shots=3), workdir=tmp_path)
+    prod = show.run("A taxi driver picks up the passenger who ruined his life")
+    scored = [s for s in prod.script.shots if s.critic_score is not None]
+    assert len(scored) >= 3
+
+
+def test_smart_voice_attribution():
+    """Voice attribution should parse speaker tags and character names."""
+    from auteur.agents.showrunner import Showrunner
+    from auteur.models import Character, Production, Script, Shot, StyleBible
+
+    chars = [
+        Character(name="Mara", description="nurse", voice="warm"),
+        Character(name="Elias", description="patient", voice="gravelly"),
+    ]
+    style = StyleBible(look="test", characters=chars)
+    prod = Production(premise="test")
+    prod.style = style
+
+    # Strategy 1: explicit speaker tag
+    shot_tagged = Shot(index=0, beat_index=0, description="test",
+                       dialogue="Elias: I'm leaving today.", video_prompt="test",
+                       importance=0.5)
+    assert Showrunner._voice_for(prod, shot_tagged).name == "Elias"
+
+    # Strategy 2: character name in description
+    shot_desc = Shot(index=0, beat_index=0, description="Mara looks up from her chart",
+                     dialogue="You'll be fine.", video_prompt="test", importance=0.5)
+    assert Showrunner._voice_for(prod, shot_desc).name == "Mara"
+
+    # Strategy 3: parity fallback
+    shot_plain = Shot(index=1, beat_index=0, description="a hallway",
+                      dialogue="Wait.", video_prompt="test", importance=0.5)
+    assert Showrunner._voice_for(prod, shot_plain).name == "Elias"  # index 1 → char 1
+
+
 def test_naive_baseline_runs(tmp_path):
     naive = NaiveShowrunner(_cfg(shots=3), workdir=tmp_path)
     prod = naive.run("A street vendor and the regular who never speaks")

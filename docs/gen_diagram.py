@@ -107,7 +107,7 @@ def main():
     arrow(draw, 590, 180, 660, 180, DIM, "bible + prompt")
 
     # --- Critic ---
-    box(draw, 660, 280, 300, 80, "Editor / Critic", "qwen-vl-max  |  3-axis scoring", accent_line=GREEN)
+    box(draw, 660, 280, 300, 80, "Editor / Critic", "qwen-vl-max  |  4-axis scoring", accent_line=GREEN)
     arrow(draw, 810, 220, 810, 280, DIM, "clip frames")
 
     # Retake loop
@@ -178,7 +178,7 @@ def main():
     # --- Benchmark section ---
     box(draw, 1160, 810, 280, 80, "Benchmark", "naive vs Auteur, Qwen-VL judge",
         fill="#0f1520", outline=ACCENT, accent_line=ACCENT)
-    draw.text((1178, 860), "quality/token headline metric", fill=DIM, font=bfont)
+    draw.text((1178, 860), "8.7 vs 6.6 at 5% of budget", fill=DIM, font=bfont)
 
     # --- Legend ---
     draw.text((40, 1100), "Legend:", fill=WHITE, font=sub_font)

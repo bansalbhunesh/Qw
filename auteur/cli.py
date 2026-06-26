@@ -26,6 +26,8 @@ def main(argv: list[str] | None = None) -> int:
         "--max-spend-usd", type=float, default=2.00,
         help="hard real-money ceiling on video renders in USD (default: 2.00)",
     )
+    parser.add_argument("--resolution", default="720P", choices=["480P", "720P", "1080P"],
+                        help="Wan render resolution (default: 720P)")
     parser.add_argument("--out", default="out", help="output directory")
     parser.add_argument(
         "--no-consistency", action="store_true",
@@ -42,7 +44,8 @@ def main(argv: list[str] | None = None) -> int:
     _logmod.setup(logging.DEBUG if args.verbose else logging.INFO)
     _log = _logmod.get("cli")
 
-    cfg = ProductionConfig(shots=args.shots, consistency=not args.no_consistency)
+    cfg = ProductionConfig(shots=args.shots, resolution=args.resolution,
+                           consistency=not args.no_consistency)
     cfg.budget.max_tokens = args.max_tokens
     cfg.budget.max_clips = args.max_clips
     cfg.budget.max_retakes = args.max_retakes

@@ -115,6 +115,9 @@ _VIEWER_HTML = """\
            padding: 1rem 1.25rem; animation: slideIn 0.3s ease; }
   .event.phase { border-left: 3px solid var(--accent); }
   .event.shot { border-left: 3px solid var(--accent2); }
+  .event.critic { border-left: 3px solid #8b5cf6; }
+  .event.retake { border-left: 3px solid var(--red); background: rgba(239,68,68,0.05); }
+  .event.budget { border-left: 3px solid #06b6d4; }
   .event.done { border-left: 3px solid var(--green); }
   .event.error { border-left: 3px solid var(--red); }
   .event-header { display: flex; justify-content: space-between; align-items: center;
@@ -133,6 +136,17 @@ _VIEWER_HTML = """\
                       transition: width 0.5s ease; }
   .budget-bar .label { font-size: 0.7rem; color: var(--dim); margin-top: 0.2rem;
                        display: flex; justify-content: space-between; }
+  .beat-tag { display: inline-block; background: rgba(99,102,241,0.15); color: var(--accent);
+              padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600;
+              margin-right: 0.3rem; }
+  .axis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; margin-top: 0.4rem; }
+  .axis-row { display: flex; align-items: center; gap: 0.4rem; }
+  .axis-label { font-size: 0.7rem; color: var(--dim); width: 5.5rem; text-align: right; }
+  .axis-track { flex: 1; background: var(--border); border-radius: 3px; height: 4px; overflow: hidden; }
+  .axis-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+  .axis-val { font-size: 0.7rem; font-weight: 600; width: 2rem; }
+  .fix-note { font-size: 0.75rem; color: var(--red); margin-top: 0.3rem; font-style: italic; }
+  .dim { color: var(--dim); }
   #video-wrap { margin-top: 2rem; text-align: center; display: none; }
   #video-wrap video { max-width: 360px; border-radius: 12px; border: 2px solid var(--accent); }
   @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -176,8 +190,11 @@ function addEvent(ev) {
   const tl = document.getElementById('timeline');
   const div = document.createElement('div');
   let cls = 'event';
-  if (['script_complete','style_bible_complete','assembly_start'].includes(ev.kind)) cls += ' phase';
+  if (['script_complete','style_bible_complete','assembly_start','score_complete'].includes(ev.kind)) cls += ' phase';
   else if (ev.kind === 'shot_complete') cls += ' shot';
+  else if (ev.kind === 'critic_verdict') cls += ' critic';
+  else if (ev.kind === 'retake_decision') cls += ' retake';
+  else if (ev.kind === 'budget_update') cls += ' budget';
   else if (ev.kind === 'production_complete') cls += ' done';
   else if (ev.kind === 'production_failed') cls += ' error';
   div.className = cls;
@@ -194,23 +211,53 @@ function addEvent(ev) {
 function renderEvent(ev) {
   const hdr = `<div class="event-header"><span class="event-kind">${ev.kind.replace(/_/g,' ')}</span><span class="event-stage">${ev.stage}</span></div>`;
   let body = '';
-  if (ev.kind === 'script_complete') {
-    body = `<strong>${ev.logline || ''}</strong><br>${(ev.beats||[]).map(b=>b.label+': '+b.summary.slice(0,60)).join('<br>')}`;
+  if (ev.kind === 'production_start') {
+    body = `<strong>Premise:</strong> ${ev.premise || ''}`;
+  } else if (ev.kind === 'script_complete') {
+    body = `<strong>${ev.logline || ''}</strong><br>${(ev.beats||[]).map(b=>'<span class="beat-tag">'+b.label+'</span> '+b.summary.slice(0,60)).join('<br>')}`;
   } else if (ev.kind === 'style_bible_complete') {
-    body = `<strong>Look:</strong> ${(ev.look||'').slice(0,120)}<br><strong>Characters:</strong> ${(ev.characters||[]).map(c=>c.name).join(', ')}`;
+    body = `<strong>Look:</strong> ${(ev.look||'').slice(0,120)}<br><strong>Characters:</strong> ${(ev.characters||[]).map(c=>c.name+' <span class="dim">('+c.description.slice(0,40)+'...)</span>').join(', ')}`;
+  } else if (ev.kind === 'critic_verdict') {
+    const sc = (ev.overall||0).toFixed(1);
+    const cls = ev.overall >= 7 ? 'pass' : 'fail';
+    body = `Shot ${ev.index} <span class="score ${cls}">${sc}/10</span>`;
+    body += `<div class="axis-grid">`;
+    body += axisBar('Prompt', ev.prompt_adherence);
+    body += axisBar('Character', ev.character_consistency);
+    body += axisBar('Quality', ev.shot_quality);
+    body += axisBar('Continuity', ev.visual_continuity);
+    body += `</div>`;
+    if (ev.fix) body += `<div class="fix-note">Fix: ${ev.fix}</div>`;
+  } else if (ev.kind === 'retake_decision') {
+    body = `<strong>Retaking shot ${ev.index}</strong> (score=${(ev.score||0).toFixed(1)}, importance=${(ev.importance||0).toFixed(1)})<br><span class="fix-note">${ev.fix||''}</span>`;
   } else if (ev.kind === 'shot_complete') {
     const sc = (ev.score||0).toFixed(1);
     const cls = ev.score >= 7 ? 'pass' : 'fail';
     body = `Shot ${ev.index} <span class="score ${cls}">${sc}/10</span> importance=${(ev.importance||0).toFixed(1)}${ev.retaken ? ' <strong>[RETAKEN]</strong>' : ''}`;
+  } else if (ev.kind === 'budget_update') {
+    body = `<strong>Budget checkpoint</strong>`;
+    body += budgetBar('Tokens', ev.tokens_used, ev.token_budget);
+    body += budgetBar('Clips', ev.clips_used, ev.clip_budget);
+    body += budgetBar('Retakes', ev.retakes_used, ev.retake_budget);
+    if (ev.estimated_cost_usd > 0) body += `<div class="dim" style="margin-top:0.3rem">Est. spend: $${ev.estimated_cost_usd.toFixed(2)} / $${ev.max_spend_usd.toFixed(2)}</div>`;
+  } else if (ev.kind === 'score_complete') {
+    body = `<strong>Score composed:</strong> mood=${ev.mood}, intensity=${(ev.intensity||0).toFixed(1)}`;
   } else if (ev.kind === 'production_complete') {
     const b = ev.budget || {};
-    body = `<strong>Done!</strong> ${b.tokens_used||0} tokens, ${b.clips_used||0} clips, ${b.retakes_used||0} retakes`;
+    body = `<strong>Production wrapped!</strong> ${b.tokens_used||0} tokens, ${b.clips_used||0} clips, ${b.retakes_used||0} retakes`;
     body += budgetBar('Tokens', b.tokens_used, b.token_budget);
     body += budgetBar('Clips', b.clips_used, b.clip_budget);
+    if (b.estimated_cost_usd > 0) body += `<div class="dim" style="margin-top:0.3rem">Total spend: $${b.estimated_cost_usd.toFixed(2)}</div>`;
   } else {
     body = JSON.stringify(ev).slice(0,200);
   }
   return hdr + `<div class="event-body">${body}</div>`;
+}
+function axisBar(label, val) {
+  val = val || 0;
+  const pct = Math.min(100, val * 10);
+  const color = val >= 7 ? 'var(--green)' : val >= 5 ? 'var(--accent2)' : 'var(--red)';
+  return `<div class="axis-row"><span class="axis-label">${label}</span><div class="axis-track"><div class="axis-fill" style="width:${pct}%;background:${color}"></div></div><span class="axis-val">${val.toFixed(1)}</span></div>`;
 }
 function budgetBar(label, used, total) {
   const pct = total ? Math.min(100, used/total*100) : 0;
