@@ -90,7 +90,30 @@ class BudgetGovernor:
             )
 
     def can_render_clip(self) -> bool:
-        return self.state.clips_used < self.budget.max_clips
+        """True if another clip is allowed by BOTH the count cap and the dollar cap."""
+        if self.state.clips_used >= self.budget.max_clips:
+            return False
+        return not self._would_exceed_cost()
+
+    def _would_exceed_cost(self) -> bool:
+        """Whether rendering one more clip would push estimated spend past the dollar cap."""
+        price = self.budget.clip_price_usd
+        if price <= 0:
+            return False  # pricing not configured (e.g. mock) — count cap governs
+        projected = (self.state.clips_used + 1) * price
+        return projected > self.budget.max_spend_usd
+
+    @property
+    def estimated_cost_usd(self) -> float:
+        return round(self.state.clips_used * self.budget.clip_price_usd, 4)
+
+    def clip_cap(self) -> int:
+        """The effective clip ceiling — the tighter of the count cap and the dollar cap."""
+        price = self.budget.clip_price_usd
+        if price <= 0:
+            return self.budget.max_clips
+        by_cost = int(self.budget.max_spend_usd // price)
+        return min(self.budget.max_clips, by_cost)
 
     def should_retake(self, critic_score: float, shot_importance: float) -> bool:
         """Decide whether a failing clip earns a reshoot.
@@ -120,6 +143,8 @@ class BudgetGovernor:
             "clip_budget": self.budget.max_clips,
             "retakes_used": self.state.retakes_used,
             "retake_budget": self.budget.max_retakes,
+            "estimated_cost_usd": self.estimated_cost_usd,
+            "max_spend_usd": self.budget.max_spend_usd,
             "tokens_by_stage": self._tokens_by_stage(),
         }
 

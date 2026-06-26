@@ -128,11 +128,26 @@ AUTEUR_MOCK=1 python -m pytest -q
 
 ```bash
 cp .env.example .env          # add your DashScope (Alibaba Cloud Model Studio) key
-python -m auteur.cli "A night-shift nurse finds a note from a patient who left years ago"
+
+# See what a production would cost before spending a cent:
+python -m auteur.cli "A night-shift nurse finds a note from a patient" --estimate
+
+# Render for real, with a hard $1 spend cap as a safety net:
+python -m auteur.cli "A night-shift nurse finds a note from a patient" --max-spend-usd 1.00
 ```
 
 With a key present, the same code paths call Qwen-Max / Qwen-VL (OpenAI-compatible endpoint)
-and Wan2.7 for real renders — mock vs. live is a single config flip (`AUTEUR_MOCK`).
+and Wan for real renders — mock vs. live is a single config flip (`AUTEUR_MOCK`).
+
+**Real-money guardrail.** Video generation is the only line item that costs real money, so the
+Budget Governor enforces a hard USD ceiling (`--max-spend-usd`, default $2.00): it stops
+rendering *before* a clip would push estimated spend past the cap, and `--estimate` prints the
+projected best/worst-case cost without rendering anything. Default model is `wan2.2-t2v-plus`
+(available on the DashScope International free tier); point `AUTEUR_MODEL_WAN_T2V` at
+`wan2.7-t2v` once paid billing is enabled.
+
+`scripts/probe_wan.py` is a standalone diagnostic that probes the video endpoint directly and
+reports which Wan model names your account can call — useful for a fast 403/quota check.
 
 ## Status
 

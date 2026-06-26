@@ -66,6 +66,10 @@ flush(ledger.json, manifest.json)
 3. **Early-exit** — clips scoring >= threshold pass with zero reshoots.
 4. **Importance-weighted retakes** — scarce reshoot budget spent on the hook first.
 5. **Pre-flight gating** — refuse a call before paying if it would blow the ceiling.
+6. **Real-money spend cap** — video is the only paid line item, so the Governor enforces a hard
+   USD ceiling (`--max-spend-usd`): it stops rendering before a clip would exceed the cap, and
+   `--estimate` previews best/worst-case cost without rendering. Clips are priced per resolution
+   (`clip_price_usd`); mock runs price at zero (no real spend).
 
 ## Visual continuity (the hardest problem in AI short drama)
 
@@ -125,7 +129,9 @@ Two layers, both metered as first-class production stages:
 - [x] Dockerfile with system ffmpeg + health check
 - [x] Visual continuity: i2v frame-chaining for cross-shot character consistency (+ t2v fallback)
 - [x] Score: AI-directed mood + procedural music bed mixed under dialogue
-- [x] Test suite: 39 tests (budget, pipeline, media, sound, retry, LLM, benchmark)
+- [x] Test suite: 41 tests (budget, pipeline, media, sound, retry, LLM, benchmark)
+- [x] Real-money spend guardrail: per-resolution clip pricing, hard USD cap, --estimate dry-run
+- [x] Default to wan2.2-t2v-plus (free-tier available); wan2.7 paywalled via FreeTierOnly 403
 - [x] Voice isolation: TTS failures no longer discard rendered clips
 - [x] i2v OSS upload: anchor frames uploaded to DashScope's temp OSS bucket for Wan i2v API
 - [x] CosyVoice v3-plus with English-compatible voices for international endpoint

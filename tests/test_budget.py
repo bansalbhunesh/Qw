@@ -32,6 +32,27 @@ def test_clip_budget_caps_renders():
     assert not gov.can_render_clip()
 
 
+def test_spend_cap_stops_renders_before_count_cap():
+    # $0.20/clip, $0.50 cap -> only 2 clips allowed even though count cap is 8.
+    gov = make_gov(max_clips=8, max_spend_usd=0.50, clip_price_usd=0.20)
+    assert gov.clip_cap() == 2
+    assert gov.can_render_clip()
+    gov.record_video("dp", "wan", clips=1)
+    assert gov.can_render_clip()
+    gov.record_video("dp", "wan", clips=1)
+    assert not gov.can_render_clip()  # 3rd clip would be $0.60 > $0.50
+    assert gov.estimated_cost_usd == 0.40
+
+
+def test_count_cap_governs_when_pricing_unset():
+    # No clip price (mock) -> dollar cap is inert, count cap governs.
+    gov = make_gov(max_clips=3, max_spend_usd=0.10, clip_price_usd=0.0)
+    assert gov.clip_cap() == 3
+    gov.record_video("dp", "wan", clips=3)
+    assert not gov.can_render_clip()
+    assert gov.estimated_cost_usd == 0.0
+
+
 def test_retake_only_for_important_failing_shots():
     gov = make_gov(max_retakes=2, pass_threshold=7.0, hook_priority_percentile=0.75)
     # passing shot -> never retake

@@ -42,9 +42,34 @@ TIER_MODELS: dict[Tier, str] = {
     Tier.VISION: os.getenv("AUTEUR_MODEL_VISION", "qwen-vl-max"),
 }
 
-WAN_T2V_MODEL = os.getenv("AUTEUR_MODEL_WAN_T2V", "wan2.7-t2v")
-WAN_I2V_MODEL = os.getenv("AUTEUR_MODEL_WAN_I2V", "wan2.7-i2v")
+# wan2.2-*-plus is the production-stable Wan family that's available on the DashScope
+# International free tier. wan2.7-* exists but its free quota is paywalled ("FreeTierOnly"
+# 403); switch to it via AUTEUR_MODEL_WAN_T2V once paid billing is enabled.
+WAN_T2V_MODEL = os.getenv("AUTEUR_MODEL_WAN_T2V", "wan2.2-t2v-plus")
+WAN_I2V_MODEL = os.getenv("AUTEUR_MODEL_WAN_I2V", "wan2.2-i2v-plus")
 TTS_MODEL = os.getenv("AUTEUR_MODEL_TTS", "cosyvoice-v3-plus")
+
+
+# --- Wan video cost model (for the real-money guardrail) ----------------------------------
+# Approximate USD per ~5s Wan clip on DashScope International, keyed by resolution. These are
+# conservative estimates used only for a PRE-FLIGHT spend guardrail — actual billing is
+# pay-for-success and may differ. Override the per-clip price with AUTEUR_CLIP_USD.
+WAN_CLIP_USD: dict[str, float] = {
+    "480P": 0.10,
+    "720P": 0.20,
+    "1080P": 0.40,
+}
+
+
+def clip_price_usd(resolution: str) -> float:
+    """Estimated USD cost of one Wan clip at the given resolution (for the spend guardrail)."""
+    override = os.getenv("AUTEUR_CLIP_USD")
+    if override:
+        try:
+            return float(override)
+        except ValueError:
+            pass
+    return WAN_CLIP_USD.get(resolution.upper(), 0.20)
 
 
 @dataclass
@@ -54,6 +79,11 @@ class BudgetConfig:
     max_retakes: int = 4
     pass_threshold: float = 7.0
     hook_priority_percentile: float = 0.75
+    # Hard real-money ceiling on video renders (USD). The Governor stops rendering before a
+    # clip would push estimated spend past this, so a test run can never torch your balance.
+    max_spend_usd: float = 2.00
+    # Estimated USD cost of one Wan clip; set by the Showrunner from the resolution price.
+    clip_price_usd: float = 0.0
 
 
 @dataclass

@@ -22,10 +22,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-tokens", type=int, default=120_000, help="token budget ceiling")
     parser.add_argument("--max-clips", type=int, default=8, help="clip render budget")
     parser.add_argument("--max-retakes", type=int, default=4, help="retake budget")
+    parser.add_argument(
+        "--max-spend-usd", type=float, default=2.00,
+        help="hard real-money ceiling on video renders in USD (default: 2.00)",
+    )
     parser.add_argument("--out", default="out", help="output directory")
     parser.add_argument(
         "--no-consistency", action="store_true",
         help="disable image-to-video continuity (render every shot independently)",
+    )
+    parser.add_argument(
+        "--estimate", action="store_true",
+        help="print the projected cost of this production and exit (renders nothing)",
     )
     parser.add_argument("--verbose", "-v", action="store_true", help="debug logging")
     args = parser.parse_args(argv)
@@ -38,6 +46,26 @@ def main(argv: list[str] | None = None) -> int:
     cfg.budget.max_tokens = args.max_tokens
     cfg.budget.max_clips = args.max_clips
     cfg.budget.max_retakes = args.max_retakes
+    cfg.budget.max_spend_usd = args.max_spend_usd
+
+    from .config import clip_price_usd
+
+    if args.estimate:
+        price = clip_price_usd(cfg.resolution)
+        by_cost = int(args.max_spend_usd // price) if price > 0 else args.max_clips
+        cap = min(args.max_clips, by_cost)
+        worst = min(args.shots + args.max_retakes, cap)
+        print("Cost estimate (no clips will be rendered):")
+        print(f"  resolution        : {cfg.resolution}")
+        print(f"  price per clip    : ${price:.2f}")
+        print(f"  spend cap         : ${args.max_spend_usd:.2f}")
+        print(f"  effective max clips: {cap}  (count cap {args.max_clips}, cost cap {by_cost})")
+        print(f"  planned shots     : {args.shots}  (+{args.max_retakes} possible retakes)")
+        print(f"  worst-case cost   : ${worst * price:.2f}  ({worst} clips)")
+        print(f"  best-case cost    : ${min(args.shots, cap) * price:.2f}  (no retakes)")
+        if cap < args.shots:
+            print(f"  ⚠  spend cap limits you to {cap} clips — fewer than {args.shots} shots.")
+        return 0
 
     from .agents.showrunner import Showrunner
 

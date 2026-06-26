@@ -25,7 +25,7 @@ from pathlib import Path
 
 from .. import log, media
 from ..budget import BudgetGovernor
-from ..config import ProductionConfig, Tier
+from ..config import ProductionConfig, Tier, clip_price_usd, is_mock
 from ..events import bus
 from ..llm import QwenClient
 from ..models import Production
@@ -54,6 +54,9 @@ class Showrunner:
         self.cfg = cfg
         self.workdir = Path(workdir)
         self.workdir.mkdir(parents=True, exist_ok=True)
+        # Price clips by resolution so the Governor can enforce the real-money spend cap.
+        # Mock runs spend nothing, so pricing is zero there (the clip-count cap still governs).
+        cfg.budget.clip_price_usd = 0.0 if is_mock() else clip_price_usd(cfg.resolution)
         self.governor = BudgetGovernor(cfg.budget, ledger_path=self.workdir / "ledger.json")
         self.client = QwenClient(self.governor)
         self.writer = Writer(self.client)
@@ -62,6 +65,28 @@ class Showrunner:
         self.sound = Sound(self.governor)
         self.editor = Editor(self.client, self.governor)
         self._score_plan: dict | None = None
+
+    def _log_cost_estimate(self) -> None:
+        """Print the worst-case real-money cost of this production before any clip renders,
+        and warn if the dollar cap will bite before the shot count is reached."""
+        from ..config import is_mock
+        if is_mock():
+            return
+        price = self.governor.budget.clip_price_usd
+        cap = self.governor.clip_cap()
+        worst_case = min(self.cfg.shots + self.cfg.budget.max_retakes, cap)
+        _log.info(
+            "cost guardrail: ~$%.2f/clip @ %s · spend cap $%.2f (max %d clips) · "
+            "worst-case this run ~$%.2f",
+            price, self.cfg.resolution, self.cfg.budget.max_spend_usd, cap,
+            worst_case * price,
+        )
+        if cap < self.cfg.shots:
+            _log.warning(
+                "spend cap $%.2f limits this run to %d clips, fewer than the %d shots planned "
+                "— raise --max-spend-usd to render them all",
+                self.cfg.budget.max_spend_usd, cap, self.cfg.shots,
+            )
 
     def _clean_workdir(self) -> None:
         """Remove generated artifacts from a previous run so outputs reflect exactly one
@@ -88,6 +113,7 @@ class Showrunner:
 
     def run(self, premise: str) -> Production:
         _log.info("=== PRODUCTION START: %s ===", premise[:60])
+        self._log_cost_estimate()
         self._clean_workdir()
         prod = Production(premise=premise)
 
@@ -116,7 +142,11 @@ class Showrunner:
 
         for shot in prod.script.shots:
             if not self.governor.can_render_clip():
-                _log.warning("clip budget exhausted at shot %d — shipping what we have", shot.index)
+                reason = ("spend cap $%.2f reached (est. $%.2f spent)"
+                          % (self.cfg.budget.max_spend_usd, self.governor.estimated_cost_usd)
+                          if self.governor._would_exceed_cost()
+                          else "clip count budget exhausted")
+                _log.warning("%s at shot %d — shipping what we have", reason, shot.index)
                 break
 
             try:
