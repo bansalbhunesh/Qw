@@ -185,6 +185,7 @@ class MockTransport:
             "visual_quality": round(min(10.0, base + 0.4), 1),
             "character_consistency": round(max(0.0, base - 0.3), 1),
             "emotional_impact": round(base, 1),
+            "shot_flow": round(min(10.0, base + 0.1), 1),
             "overall": round(base, 1),
             "notes": "Mock judgement — deterministic placeholder until live scoring.",
         })
