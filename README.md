@@ -1,9 +1,25 @@
-# Auteur — The Budget-Aware AI Showrunner
+<div align="center">
 
-> An autonomous agent that turns a one-line premise into a finished vertical short drama —
-> and directs like a real showrunner: it nails the shot without wasting film.
->
-> **Track 2: AI Showrunner** · Global AI Hackathon Series with Qwen Cloud
+# 🎬 Auteur — The Budget-Aware AI Showrunner
+
+**An autonomous agent that turns a one-line premise into a finished vertical short drama —
+and directs like a real showrunner: it nails the shot without wasting film.**
+
+`Track 2: AI Showrunner` · Global AI Hackathon Series with Qwen Cloud
+
+![Tests](https://img.shields.io/badge/tests-85%20passing-2ea44f)
+![Python](https://img.shields.io/badge/python-3.11%2B-3776ab)
+![Qwen](https://img.shields.io/badge/Qwen-Max%20·%20VL%20·%20Wan%20·%20CosyVoice-6e56cf)
+![Cloud](https://img.shields.io/badge/Alibaba%20Cloud-DashScope%20%2B%20OSS%20%2B%20ECS-ff6a00)
+![License](https://img.shields.io/badge/license-MIT-2ea44f)
+
+<br>
+
+![Auteur — real Wan footage](assets/hero.gif)
+
+*Real footage rendered live on Alibaba Cloud Wan — "A lighthouse keeper teaches the drone sent to replace him."*
+
+</div>
 
 ---
 
@@ -63,6 +79,25 @@ evaluation, a real benchmark is the cheapest signal of production-grade engineer
 each architectural feature is disabled in turn (critic loop, prompt optimizer, style bible,
 tiered routing) and the quality impact is measured. This proves every design decision earns its
 place — it's not a grab bag of features, it's an engineered system.
+
+---
+
+## See it in action
+
+**The Studio — watch the showrunner work in real time.** Every clip is scored by Qwen-VL on four
+axes (prompt adherence, character consistency, shot quality, cross-shot continuity), retake
+decisions are made live, and the budget meters tick as it spends:
+
+![Live Studio](assets/studio.png)
+
+**The Storyboard — a self-contained breakdown exported on every run.** Real frames from each
+rendered shot, the live critic score, the Style Bible, routing efficiency, and the decision log:
+
+![Storyboard](assets/storyboard_top.png)
+
+**The Gallery — browse every production with aggregate economics at a glance:**
+
+![Gallery metrics](assets/gallery_metrics.png)
 
 ---
 

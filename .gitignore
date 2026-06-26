@@ -4,9 +4,15 @@ __pycache__/
 .venv/
 venv/
 out/
+productions/
 bench/results/
 *.mp4
 *.wav
 *.png
+*.jpg
 !docs/**/*.png
+# README visual assets are tracked
+!assets/*.png
+!assets/*.jpg
+!assets/*.gif
 .DS_Store

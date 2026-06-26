@@ -662,7 +662,7 @@ async function load(){
   const grid=document.getElementById('grid');
   if(!items.length){grid.innerHTML='<div class="empty">No productions yet. Make one in the Studio.</div>';return;}
   grid.innerHTML=items.map(p=>{
-    const vid=p.has_video?`<video src="/productions/${p.id}/final.mp4" muted loop onmouseover="this.play()" onmouseout="this.pause()"></video>`:'<div class="novid">no video</div>';
+    const vid=p.has_video?`<video src="/productions/${p.id}/final.mp4" muted loop preload="auto" onloadeddata="try{this.currentTime=1.5}catch(e){}" onmouseover="this.play()" onmouseout="this.pause()"></video>`:'<div class="novid">no video</div>';
     const sc=p.avg_score||0;
     const sb=p.has_storyboard?`<a href="/productions/${p.id}/storyboard.html" target="_blank">Storyboard →</a>`:'';
     return `<a class="card" href="/productions/${p.id}/storyboard.html" target="_blank">${vid}
