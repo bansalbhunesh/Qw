@@ -33,6 +33,7 @@ Budget Governor (`auteur/budget.py`) is the optimizer's accountant; the agents a
 | `deploy/alibaba_cloud.py` | OSS upload, DashScope health check, FastAPI service (ECS proof) |
 | `Dockerfile` | Production container with system ffmpeg + health check |
 | `bench/` | Benchmark harness: both systems + Qwen-VL judge + efficiency report |
+| `bench/ablation.py` | Ablation study: disables features one-by-one to prove each pulls its weight |
 
 ## The budgeted control loop
 
@@ -201,6 +202,8 @@ Two layers, both metered as first-class production stages:
 - [x] Dynamic resolution routing: hero shots at 1080P, grunt shots at 480P
 - [x] Shot pacing engine: variable clip duration based on importance and beat type
 - [x] Storyboard HTML export: visual production breakdown with frames, scores, budget analytics
+- [x] Ablation study: feature contribution analysis (no-critic, no-prompt-opt, no-bible, no-routing)
+- [x] Production gallery API endpoint for browsing past productions
 - [x] 73 tests (budget, pipeline, media, sound, retry, LLM, benchmark, storyboard, prompt opt)
 - [ ] Run the benchmark live; populate README table with real scores
 - [ ] Deploy to Alibaba Cloud ECS; record proof-of-deployment video

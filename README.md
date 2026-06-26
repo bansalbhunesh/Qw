@@ -100,8 +100,8 @@ OSS asset storage) and the proof-of-deployment file.
 |-----------|-------------------|
 | **Narrative ability** | Structured beat-sheet screenwriting with importance-weighted beats, not one-shot prompting |
 | **Multimodal orchestration** | Qwen-Max + Qwen-VL + Wan + CosyVoice TTS coordinated in a 4-axis critic loop with cross-shot continuity scoring |
-| **Output quality under a token budget** | The Budget Governor — with a benchmark proving 32% quality improvement at 5.3% budget utilization |
-| **Production-readiness** | Alibaba Cloud (ECS + OSS + DashScope), token ledger, eval harness, 69 tests, live web viewer |
+| **Output quality under a token budget** | The Budget Governor — with a benchmark proving 32% quality improvement at 5.3% budget utilization, plus ablation study proving each feature's contribution |
+| **Production-readiness** | Alibaba Cloud (ECS + OSS + DashScope), token ledger, eval harness, ablation study, 73 tests, storyboard export, live web viewer |
 | **Innovation** | Adaptive scarcity-aware retakes, cross-shot visual continuity, dynamic resolution routing, prompt optimizer, tone-aware transitions, storyboard export — not a linear pipeline |
 
 ---
@@ -122,6 +122,12 @@ Run the benchmark harness (naive baseline vs. Auteur, with the Qwen-VL judge):
 
 ```bash
 AUTEUR_MOCK=1 python -m bench.benchmark --premises bench/premises.txt
+```
+
+Run the ablation study (proves each architectural feature pulls its weight):
+
+```bash
+AUTEUR_MOCK=1 python -m bench.ablation --premise "A lighthouse keeper teaches the drone sent to replace him"
 ```
 
 Run the test suite:
