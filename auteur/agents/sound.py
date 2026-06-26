@@ -125,15 +125,21 @@ class Sound:
     # --- DashScope CosyVoice TTS ---------------------------------------------------
 
     def _cosyvoice_sync(self, text: str, voice: str, out_path: str) -> str:
-        """CosyVoice via the DashScope speech synthesis endpoint."""
+        """CosyVoice via the DashScope speech synthesis endpoint.
+
+        CosyVoice v2/v3 uses DashScope's ASYNC task pattern (like Wan): submit with
+        X-DashScope-Async, poll the task, then download the produced audio URL. The
+        synchronous SAMBERT-style call returns "url error" for these models.
+        """
         headers = {
             "Authorization": f"Bearer {require_api_key()}",
             "Content-Type": "application/json",
+            "X-DashScope-Async": "enable",
         }
         payload = {
             "model": TTS_MODEL,
-            "input": {"text": text},
-            "parameters": {"voice": voice, "format": "wav", "sample_rate": 22050},
+            "input": {"text": text, "voice": voice},
+            "parameters": {"format": "wav", "sample_rate": 22050},
         }
 
         url = f"{DASHSCOPE_NATIVE_BASE}/services/aigc/text2audio/audio-synthesis"
@@ -143,11 +149,12 @@ class Sound:
         r.raise_for_status()
         body = r.json()
 
-        # Some TTS endpoints return audio inline; others return a task to poll.
-        if "output" in body and "audio_url" in body.get("output", {}):
-            return self._download_audio(body["output"]["audio_url"], out_path)
+        # Async returns a task to poll; some sync endpoints return audio inline.
+        out = body.get("output", {})
+        if "audio_url" in out:
+            return self._download_audio(out["audio_url"], out_path)
 
-        task_id = body.get("output", {}).get("task_id")
+        task_id = out.get("task_id")
         if task_id:
             return self._poll_tts(task_id, out_path)
 

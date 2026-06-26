@@ -65,7 +65,8 @@ class Showrunner:
         self.client = QwenClient(self.governor)
         self.writer = Writer(self.client)
         self.art = ArtDirector(self.client)
-        self.dp = Cinematographer(self.governor, resolution=cfg.resolution)
+        self.dp = Cinematographer(self.governor, resolution=cfg.resolution,
+                                  aspect_ratio=cfg.aspect_ratio)
         self.sound = Sound(self.governor)
         self.editor = Editor(self.client, self.governor)
         self.prompt_opt = PromptOptimizer(self.client)
@@ -354,7 +355,8 @@ class Showrunner:
         resolution = self._resolve_resolution(shot)
         dp = self.dp
         if resolution != self.cfg.resolution:
-            dp = Cinematographer(self.governor, resolution=resolution)
+            dp = Cinematographer(self.governor, resolution=resolution,
+                                 aspect_ratio=self.cfg.aspect_ratio)
 
         duration = media.shot_duration(shot.importance, beat_label)
 

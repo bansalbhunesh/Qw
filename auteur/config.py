@@ -72,6 +72,30 @@ def clip_price_usd(resolution: str) -> float:
     return WAN_CLIP_USD.get(resolution.upper(), 0.20)
 
 
+# Wan accepts an explicit pixel `size` ("width*height") that fixes BOTH resolution and aspect
+# ratio. "resolution" alone defaults to 16:9 landscape, which is wrong for a vertical short
+# drama — so we always send an explicit vertical size for 9:16.
+_WAN_SIZES: dict[tuple[str, str], str] = {
+    ("480P", "9:16"): "480*832",
+    ("720P", "9:16"): "720*1280",
+    ("1080P", "9:16"): "1080*1920",
+    ("480P", "16:9"): "832*480",
+    ("720P", "16:9"): "1280*720",
+    ("1080P", "16:9"): "1920*1080",
+    ("480P", "1:1"): "624*624",
+    ("720P", "1:1"): "960*960",
+    ("1080P", "1:1"): "1440*1440",
+}
+
+
+def wan_size(resolution: str, aspect_ratio: str = "9:16") -> str:
+    """Map a resolution + aspect ratio to a Wan `size` string ("width*height")."""
+    override = os.getenv("AUTEUR_WAN_SIZE")
+    if override:
+        return override
+    return _WAN_SIZES.get((resolution.upper(), aspect_ratio), "720*1280")
+
+
 @dataclass
 class BudgetConfig:
     max_tokens: int = 120_000

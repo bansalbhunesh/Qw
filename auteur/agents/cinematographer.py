@@ -36,9 +36,11 @@ class RenderFailed(RuntimeError):
 
 
 class Cinematographer:
-    def __init__(self, governor: BudgetGovernor, resolution: str = "720P"):
+    def __init__(self, governor: BudgetGovernor, resolution: str = "720P",
+                 aspect_ratio: str = "9:16"):
         self.governor = governor
         self.resolution = resolution
+        self.aspect_ratio = aspect_ratio
 
     def render(
         self,
@@ -157,10 +159,18 @@ class Cinematographer:
 
     def _create_task(self, model: str, prompt: str, image_url: str | None,
                      duration: float = 5.0) -> str:
+        from ..config import wan_size
+        # Send an explicit vertical `size` (fixes resolution AND 9:16 aspect). wan2.2-t2v-plus
+        # does NOT support `duration` customization, so we only include it when explicitly
+        # enabled (AUTEUR_WAN_DURATION=1) for models/tiers that do.
+        params: dict = {"size": wan_size(self.resolution, self.aspect_ratio)}
+        import os
+        if os.getenv("AUTEUR_WAN_DURATION", "").lower() in {"1", "true", "yes"}:
+            params["duration"] = int(round(duration))
         payload: dict = {
             "model": model,
             "input": {"prompt": prompt},
-            "parameters": {"resolution": self.resolution, "duration": int(round(duration))},
+            "parameters": params,
         }
         if image_url:
             payload["input"]["img_url"] = image_url

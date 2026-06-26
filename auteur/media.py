@@ -59,6 +59,34 @@ def _run(args: list[str], *, timeout: int = 120) -> subprocess.CompletedProcess:
 
 # --- probing -----------------------------------------------------------------------
 
+def has_audio_stream(path: str | Path) -> bool:
+    """True if the file has at least one audio stream. Wan clips render silent, so we
+    must detect this before trying to mix or crossfade audio.
+
+    Uses ffprobe when a real one is available; falls back to parsing `ffmpeg -i` stderr
+    (imageio-ffmpeg ships ffmpeg but not ffprobe, so `ffprobe_exe()` may return ffmpeg,
+    which doesn't understand -select_streams)."""
+    probe = ffprobe_exe()
+    if "ffprobe" in Path(probe).name.lower():
+        try:
+            r = subprocess.run(
+                [probe, "-v", "error", "-select_streams", "a",
+                 "-show_entries", "stream=index", "-of", "csv=p=0", str(path)],
+                capture_output=True, text=True, timeout=15,
+            )
+            if r.returncode == 0:
+                return bool(r.stdout.strip())
+        except Exception:
+            pass
+    # Fallback: parse ffmpeg -i stderr for an Audio stream line.
+    try:
+        r = subprocess.run([ffmpeg_exe(), "-i", str(path)],
+                           capture_output=True, text=True, timeout=15)
+        return "Audio:" in r.stderr
+    except Exception:
+        return False
+
+
 def probe_duration(path: str | Path) -> float:
     """Return clip duration in seconds."""
     try:
@@ -225,6 +253,25 @@ def mix_music(
     copying the original video if the mix fails (e.g. video has no audio track)."""
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # If the video has no audio track (Wan clips render silent and TTS may have failed),
+    # attach the music as the sole audio track instead of mixing — otherwise ffmpeg's
+    # amix references a non-existent [0:a] and the whole score is dropped.
+    if not has_audio_stream(video_path):
+        try:
+            _run([
+                "-i", str(video_path), "-i", str(music_path),
+                "-map", "0:v", "-map", "1:a",
+                "-c:v", "copy", "-c:a", "aac", "-shortest", str(out_path),
+            ])
+            _log.info("video had no audio — music added as primary track")
+            return str(out_path)
+        except RuntimeError as exc:
+            _log.warning("music attach failed (%s) — shipping silent", exc)
+            import shutil
+            shutil.copy2(video_path, out_path)
+            return str(out_path)
+
     try:
         _run([
             "-i", str(video_path), "-i", str(music_path),
@@ -317,6 +364,9 @@ def concat_with_crossfade(
         acc += durations[i] - fade_s
         offsets.append(acc)
 
+    # Wan clips render silent — only build the audio crossfade graph if EVERY clip has audio.
+    all_have_audio = all(has_audio_stream(p) for p in clip_paths)
+
     vfilter_parts = []
     afilter_parts = []
     prev_v = "[0:v]"
@@ -330,9 +380,10 @@ def concat_with_crossfade(
         vfilter_parts.append(
             f"{prev_v}{next_v}xfade=transition=fade:duration={fade_s}:offset={offsets[i]:.3f}{out_v}"
         )
-        afilter_parts.append(
-            f"{prev_a}{next_a}acrossfade=d={fade_s}:c1=tri:c2=tri{out_a}"
-        )
+        if all_have_audio:
+            afilter_parts.append(
+                f"{prev_a}{next_a}acrossfade=d={fade_s}:c1=tri:c2=tri{out_a}"
+            )
         prev_v = out_v
         prev_a = out_a
 
@@ -342,11 +393,11 @@ def concat_with_crossfade(
     cmd: list[str] = [ffmpeg_exe(), "-y"]
     for p in clip_paths:
         cmd += ["-i", str(Path(p).resolve())]
+    cmd += ["-filter_complex", fcomplex, "-map", "[vout]"]
+    if all_have_audio:
+        cmd += ["-map", "[aout]", "-c:a", "aac"]
     cmd += [
-        "-filter_complex", fcomplex,
-        "-map", "[vout]", "-map", "[aout]",
-        "-c:v", "libx264", "-preset", "fast",
-        "-c:a", "aac", "-pix_fmt", "yuv420p",
+        "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
         "-movflags", "+faststart", str(out_path),
     ]
 
