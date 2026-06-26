@@ -121,6 +121,10 @@ class BudgetGovernor:
         A reshoot happens only if: the shot failed the bar, we have retake budget left, we
         have clip budget left, and the shot is important enough to justify spending a
         scarce retake on it (the hook beats a cutaway).
+
+        Adaptive threshold: as budget runs low, the bar for importance rises. This ensures
+        the system becomes more selective as resources dwindle — a production-grade behavior
+        that static thresholds can't match.
         """
         if critic_score >= self.budget.pass_threshold:
             return False
@@ -128,7 +132,11 @@ class BudgetGovernor:
             return False
         if not self.can_render_clip():
             return False
-        return shot_importance >= self.budget.hook_priority_percentile
+        remaining_retakes = self.budget.max_retakes - self.state.retakes_used
+        total_retakes = self.budget.max_retakes
+        scarcity = 1.0 - (remaining_retakes / max(1, total_retakes))
+        adaptive_threshold = self.budget.hook_priority_percentile + 0.1 * scarcity
+        return shot_importance >= adaptive_threshold
 
     def register_retake(self) -> None:
         self.state.retakes_used += 1

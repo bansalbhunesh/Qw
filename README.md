@@ -100,7 +100,7 @@ OSS asset storage) and the proof-of-deployment file.
 | **Narrative ability** | Structured beat-sheet screenwriting with importance-weighted beats, not one-shot prompting |
 | **Multimodal orchestration** | Qwen-Max + Qwen-VL + Wan + CosyVoice TTS coordinated in a 4-axis critic loop with cross-shot continuity scoring |
 | **Output quality under a token budget** | The Budget Governor — with a benchmark proving 32% quality improvement at 5.3% budget utilization |
-| **Production-readiness** | Alibaba Cloud (ECS + OSS + DashScope), token ledger, eval harness, 64 tests, live web viewer |
+| **Production-readiness** | Alibaba Cloud (ECS + OSS + DashScope), token ledger, eval harness, 67 tests, live web viewer |
 | **Innovation** | A self-critiquing, budget-aware director with cross-shot visual continuity scoring — not a linear pipeline |
 
 ---
@@ -165,7 +165,7 @@ real Wan video generation, Qwen-Max/VL orchestration, CosyVoice TTS, and AI-dire
 Working today:
 - Budget Governor + token ledger (6K tokens to produce a 6-shot film from 120K budget)
 - 4-axis Qwen-VL critic loop: prompt adherence, character consistency, shot quality, cross-shot visual continuity
-- Importance-weighted retakes with the critic's fix injected into the reshoot prompt
+- Importance-weighted retakes with adaptive scarcity: bar rises as budget depletes
 - Visual continuity: i2v frame-chaining via OSS-uploaded anchor frames (with t2v fallback)
 - Cross-shot continuity scoring: critic compares frames from adjacent shots to catch character drift
 - Smart dialogue voice attribution: parses speaker tags, character name mentions, with parity fallback
@@ -177,7 +177,7 @@ Working today:
 - Parallel shot rendering when `--no-consistency` is set (wall-clock speedup with thread pool)
 - Tier-level token breakdown: proves model routing works (grunt/creative/vision spend)
 - Live web viewer with real-time critic verdicts, retake decisions, and budget status bars
-- 64 passing tests, naive baseline, benchmark harness
+- 67 passing tests, naive baseline, benchmark harness
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design, module map, and roadmap.
 

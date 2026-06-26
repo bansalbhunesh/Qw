@@ -67,7 +67,9 @@ flush(ledger.json, manifest.json)
 1. **Tiered routing** — `qwen-flash` for grunt work, `qwen-max` only for creative-critical beats.
 2. **Asset caching** — one Style Bible, injected everywhere; no per-shot character re-description.
 3. **Early-exit** — clips scoring >= threshold pass with zero reshoots.
-4. **Importance-weighted retakes** — scarce reshoot budget spent on the hook first.
+4. **Importance-weighted retakes with adaptive scarcity** — scarce reshoot budget spent on
+   the hook first; the importance bar rises as retakes deplete, making the system more selective
+   under resource pressure (a production-grade behavior that static thresholds can't match).
 5. **Pre-flight gating** — refuse a call before paying if it would blow the ceiling.
 6. **Real-money spend cap** — video is the only paid line item, so the Governor enforces a hard
    USD ceiling (`--max-spend-usd`): it stops rendering before a clip would exceed the cap, and
@@ -162,7 +164,7 @@ Two layers, both metered as first-class production stages:
 - [x] Dockerfile with system ffmpeg + health check
 - [x] Visual continuity: i2v frame-chaining for cross-shot character consistency (+ t2v fallback)
 - [x] Score: AI-directed mood + procedural music bed mixed under dialogue
-- [x] Test suite: 64 tests (budget, pipeline, media, sound, retry, LLM, benchmark)
+- [x] Test suite: 67 tests (budget, pipeline, media, sound, retry, LLM, benchmark)
 - [x] Real-money spend guardrail: per-resolution clip pricing, hard USD cap, --estimate dry-run
 - [x] Default to wan2.2-t2v-plus (free-tier available); wan2.7 paywalled via FreeTierOnly 403
 - [x] Voice isolation: TTS failures no longer discard rendered clips
@@ -180,6 +182,9 @@ Two layers, both metered as first-class production stages:
 - [x] Quality gate: `--quality-gate` CLI flag to drop below-threshold shots from the final cut
 - [x] Parallel shot rendering: concurrent workers when `--no-consistency` is set (wall-clock speedup)
 - [x] Tier-level token breakdown in ledger, CLI, and benchmark report (proves model routing works)
+- [x] Adaptive retake threshold: importance bar rises as retakes deplete (scarcity-aware budgeting)
+- [x] Quality arc: per-shot score trajectory in manifest, CLI, and viewer for production analytics
+- [x] 67 tests (budget, pipeline, media, sound, retry, LLM, benchmark)
 - [ ] Run the benchmark live; populate README table with real scores
 - [ ] Deploy to Alibaba Cloud ECS; record proof-of-deployment video
 - [ ] 3-min demo video + architecture diagram export + blog post

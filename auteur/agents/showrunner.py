@@ -59,8 +59,6 @@ class Showrunner:
         self.cfg = cfg
         self.workdir = Path(workdir)
         self.workdir.mkdir(parents=True, exist_ok=True)
-        # Price clips by resolution so the Governor can enforce the real-money spend cap.
-        # Mock runs spend nothing, so pricing is zero there (the clip-count cap still governs).
         cfg.budget.clip_price_usd = 0.0 if is_mock() else clip_price_usd(cfg.resolution)
         self.governor = BudgetGovernor(cfg.budget, ledger_path=self.workdir / "ledger.json")
         self.client = QwenClient(self.governor)
@@ -70,6 +68,7 @@ class Showrunner:
         self.sound = Sound(self.governor)
         self.editor = Editor(self.client, self.governor)
         self._score_plan: dict | None = None
+        self._decisions: list[dict] = []
 
     def _log_cost_estimate(self) -> None:
         """Print the worst-case real-money cost of this production before any clip renders,
@@ -214,8 +213,10 @@ class Showrunner:
         self.governor.flush()
         self._write_manifest(prod, timeline=_timeline)
 
+        report = self._report_card(prod)
         bus.emit("production_complete", "showrunner",
-                 final=prod.final_path, budget=self.governor.summary())
+                 final=prod.final_path, budget=self.governor.summary(),
+                 report_card=report)
         _log.info("=== PRODUCTION COMPLETE: %s ===", prod.final_path)
         _log.info(
             "budget: %d/%d tokens, %d/%d clips, %d/%d retakes",
@@ -334,7 +335,20 @@ class Showrunner:
         shot.critic_score = float(review.get("overall", 0.0))
 
         # --- conditional reshoot ---
-        if self.governor.should_retake(shot.critic_score, shot.importance):
+        should_retake = self.governor.should_retake(shot.critic_score, shot.importance)
+        self._decisions.append({
+            "shot": shot.index, "type": "retake_decision",
+            "score": shot.critic_score, "importance": shot.importance,
+            "retake": should_retake,
+            "reason": ("score %.1f < %.1f threshold, importance %.1f passes adaptive bar"
+                       % (shot.critic_score, self.governor.budget.pass_threshold, shot.importance)
+                       if should_retake else
+                       "score %.1f >= %.1f threshold (pass)" % (shot.critic_score, self.governor.budget.pass_threshold)
+                       if shot.critic_score >= self.governor.budget.pass_threshold else
+                       "importance %.1f below adaptive bar (budget-aware skip)" % shot.importance),
+        })
+
+        if should_retake:
             self.governor.register_retake()
             fix = review.get("fix", "")
             fixed_prompt = f"{prompt} {fix}".strip() if fix else prompt
@@ -451,6 +465,7 @@ class Showrunner:
             "score": self._score_plan or {},
             "budget": self.governor.summary(),
             "report_card": self._report_card(prod),
+            "decisions": self._decisions,
             "timeline": timeline or [],
         }
         if prod.script:
@@ -483,6 +498,12 @@ class Showrunner:
         max_score = max((s.critic_score for s in scored), default=0.0)
         budget = self.governor.summary()
 
+        quality_arc = [
+            {"shot": s.index, "score": s.critic_score, "importance": s.importance,
+             "retaken": s.retaken}
+            for s in shots if s.critic_score is not None
+        ]
+
         return {
             "shots_planned": len(shots),
             "shots_rendered": len(rendered),
@@ -490,6 +511,7 @@ class Showrunner:
             "avg_critic_score": round(avg_score, 2),
             "min_critic_score": round(min_score, 2),
             "max_critic_score": round(max_score, 2),
+            "quality_arc": quality_arc,
             "budget_utilization_pct": round(
                 budget["tokens_used"] / max(1, budget["token_budget"]) * 100, 1,
             ),

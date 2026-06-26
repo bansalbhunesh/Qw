@@ -266,6 +266,18 @@ function renderEvent(ev) {
     body += `</div>`;
     body += budgetBar('Tokens', b.tokens_used, b.token_budget);
     body += budgetBar('Clips', b.clips_used, b.clip_budget);
+    const rc = ev.report_card || {};
+    if (rc.quality_arc && rc.quality_arc.length) {
+      body += `<div style="margin-top:0.6rem"><strong>Quality Arc</strong></div>`;
+      body += `<div style="margin-top:0.3rem">`;
+      rc.quality_arc.forEach(s => {
+        const pct = Math.min(100, s.score * 10);
+        const color = s.score >= 7 ? 'var(--green)' : s.score >= 5 ? 'var(--accent2)' : 'var(--red)';
+        const retake = s.retaken ? ' R' : '';
+        body += `<div class="axis-row"><span class="axis-label">Shot ${s.shot}</span><div class="axis-track"><div class="axis-fill" style="width:${pct}%;background:${color}"></div></div><span class="axis-val">${s.score.toFixed(1)}${retake}</span></div>`;
+      });
+      body += `</div>`;
+    }
     body += `</div>`;
   } else {
     body = JSON.stringify(ev).slice(0,200);

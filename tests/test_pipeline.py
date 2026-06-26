@@ -228,6 +228,36 @@ def test_multiple_premises_produce_independent_outputs(tmp_path):
     assert prod1.final_path != prod2.final_path
 
 
+def test_manifest_includes_decisions(tmp_path):
+    """Manifest should include the Governor's decision log with retake reasoning."""
+    show = Showrunner(_cfg(shots=3), workdir=tmp_path)
+    prod = show.run("A clockmaker opens a watch and finds a message inside")
+    import json
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    decisions = manifest.get("decisions", [])
+    assert len(decisions) >= 1
+    for d in decisions:
+        assert "shot" in d
+        assert "type" in d
+        assert "reason" in d
+        assert "retake" in d
+
+
+def test_report_card_has_quality_arc(tmp_path):
+    """Report card should include a per-shot quality arc."""
+    show = Showrunner(_cfg(shots=3), workdir=tmp_path)
+    prod = show.run("A cartographer draws a map to a place that doesn't exist")
+    import json
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    arc = manifest.get("report_card", {}).get("quality_arc", [])
+    assert len(arc) >= 1
+    for point in arc:
+        assert "shot" in point
+        assert "score" in point
+        assert "importance" in point
+        assert "retaken" in point
+
+
 def test_naive_baseline_runs(tmp_path):
     naive = NaiveShowrunner(_cfg(shots=3), workdir=tmp_path)
     prod = naive.run("A street vendor and the regular who never speaks")

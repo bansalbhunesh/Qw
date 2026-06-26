@@ -116,3 +116,19 @@ def test_clip_cap_minimum_of_count_and_cost():
     assert gov.clip_cap() == 2  # cost cap is tighter
     gov2 = make_gov(max_clips=2, max_spend_usd=5.00, clip_price_usd=0.20)
     assert gov2.clip_cap() == 2  # count cap is tighter
+
+
+def test_adaptive_retake_threshold():
+    """As retake budget depletes, the importance bar rises (adaptive scarcity)."""
+    gov = make_gov(max_retakes=4, pass_threshold=7.0, hook_priority_percentile=0.75)
+    # With full budget (0 used), threshold is at 0.75
+    assert gov.should_retake(5.0, 0.80)
+    # Use up some retakes — threshold rises with scarcity
+    gov.register_retake()
+    gov.register_retake()
+    gov.register_retake()
+    # With 3/4 used, scarcity = 0.75, adaptive threshold = 0.75 + 0.075 = 0.825
+    # So importance 0.80 is no longer enough
+    assert not gov.should_retake(5.0, 0.80)
+    # But very high importance still passes
+    assert gov.should_retake(5.0, 0.90)

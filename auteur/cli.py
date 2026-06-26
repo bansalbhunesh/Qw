@@ -127,6 +127,14 @@ def main(argv: list[str] | None = None) -> int:
             hi = max(s.critic_score for s in scored)
             print(f"\n  Quality: avg={avg:.1f}  min={lo:.1f}  max={hi:.1f}")
 
+        print(f"\n  Quality arc:")
+        for s in prod.script.shots:
+            if s.critic_score is not None:
+                bar_len = int(s.critic_score * 3)
+                bar = '=' * bar_len
+                flag = " R" if s.retaken else "  "
+                print(f"    {s.index}. [{s.critic_score:4.1f}] {bar:30s}{flag}")
+
         print(f"\n  Shots ({len(prod.script.shots)}):")
         for s in prod.script.shots:
             flag = " [retaken]" if s.retaken else ""
