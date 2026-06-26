@@ -160,7 +160,7 @@ class Cinematographer:
         payload: dict = {
             "model": model,
             "input": {"prompt": prompt},
-            "parameters": {"resolution": self.resolution, "duration": round(duration, 1)},
+            "parameters": {"resolution": self.resolution, "duration": int(round(duration))},
         }
         if image_url:
             payload["input"]["img_url"] = image_url
