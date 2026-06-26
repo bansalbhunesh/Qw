@@ -222,11 +222,16 @@ class Showrunner:
                  index=shot.index, score=shot.critic_score, retaken=shot.retaken,
                  importance=shot.importance)
 
-        # --- voice ---
-        voice = self._voice_for(prod, shot)
-        audio = self.sound.voice_line(
-            shot.dialogue, voice, str(self.workdir / f"audio_{shot.index}.wav"),
-        )
+        # --- voice (isolated — a TTS failure must never discard a rendered clip) ---
+        audio: str | None = None
+        try:
+            voice = self._voice_for(prod, shot)
+            audio = self.sound.voice_line(
+                shot.dialogue, voice, str(self.workdir / f"audio_{shot.index}.wav"),
+            )
+        except Exception:
+            _log.warning("voicing shot %d failed — shipping silent:\n%s",
+                         shot.index, traceback.format_exc())
 
         return clip, audio
 

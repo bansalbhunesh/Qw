@@ -70,6 +70,17 @@ def test_production_is_scored(tmp_path):
     assert manifest["score"].get("mood")
 
 
+def test_voice_failure_does_not_discard_clip(tmp_path):
+    """A TTS failure must never throw away an already-rendered clip."""
+    from unittest.mock import patch
+    cfg = _cfg(shots=3)
+    show = Showrunner(cfg, workdir=tmp_path)
+    with patch.object(show.sound, "voice_line", side_effect=RuntimeError("TTS down")):
+        prod = show.run("An engineer finds music in a broken radio")
+    assert Path(prod.final_path).exists()
+    assert show.governor.state.clips_used >= 3
+
+
 def test_naive_baseline_runs(tmp_path):
     naive = NaiveShowrunner(_cfg(shots=3), workdir=tmp_path)
     prod = naive.run("A street vendor and the regular who never speaks")
