@@ -209,9 +209,19 @@ cp .env.example .env          # add your DashScope key
 docker compose up -d           # API on :8000, viewer on :8080
 ```
 
-The API serves at `/produce` (POST), `/healthz` (GET), and each production's artifacts at
-`/productions/{id}/final.mp4`, `/productions/{id}/storyboard.html`, etc.
-The viewer at `:8080` streams productions in real time via SSE.
+**Backend API** (`:8000`):
+- `POST /produce` — render a short from a premise (JSON body)
+- `GET /healthz` — liveness + live DashScope/OSS check
+- `GET /gallery` · `GET /metrics` — browse past productions + aggregate stats
+- `GET /productions/{id}/final.mp4` · `/storyboard.html` · artifacts
+- `GET /docs` — interactive Swagger/OpenAPI docs (auto-generated)
+- CORS enabled for browser clients
+
+**Frontend** (`:8080`):
+- **Studio** (`/`) — submit a premise and watch the production stream live via SSE: script,
+  Style Bible, per-shot 4-axis critic verdicts, and budget bars, all in real time.
+- **Gallery** (`/gallery`) — a showcase grid of every production with hover-play video previews,
+  critic scores, token counts, and links to each storyboard, plus headline aggregate metrics.
 
 ## Status
 
@@ -240,8 +250,10 @@ Working today:
 - Dynamic resolution routing: hero shots at 1080P, grunt shots at 480P (per-shot budget optimization)
 - Shot pacing engine: variable clip duration based on beat importance and type
 - Storyboard HTML export: visual production breakdown with frames, scores, and budget analytics
-- Live web viewer with real-time critic verdicts, retake decisions, and budget status bars
-- 73 passing tests, naive baseline, benchmark harness
+- Live web Studio: real-time critic verdicts, retake decisions, and budget status bars (SSE)
+- Production Gallery: showcase grid with hover-play previews, scores, and aggregate metrics
+- Hardened FastAPI backend: CORS, auto-generated Swagger docs, /gallery + /metrics endpoints
+- 81 passing tests, naive baseline, benchmark harness
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design, module map, and roadmap.
 

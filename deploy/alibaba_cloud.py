@@ -22,10 +22,30 @@ import os
 import uuid
 from pathlib import Path
 
+from pydantic import BaseModel
+
 from auteur import log as _logmod
 from auteur.retry import with_retry
 
 _log = _logmod.get("deploy")
+
+
+# Request/response models are defined at MODULE level so FastAPI can generate the OpenAPI
+# schema (Pydantic v2 cannot resolve forward refs for function-local models — /docs would break).
+class ProduceRequest(BaseModel):
+    premise: str
+    shots: int = 6
+    max_tokens: int = 120_000
+    max_spend_usd: float = 2.00
+    quality_gate: float = 0.0
+    dynamic_resolution: bool = False
+
+
+class ProduceResponse(BaseModel):
+    final: str | None
+    storyboard: str | None = None
+    ledger: dict
+    manifest: dict | None = None
 
 
 # --- Alibaba Cloud OSS asset storage ---------------------------------------------------
@@ -84,27 +104,26 @@ def dashscope_smoke_test() -> dict:
 
 def build_app():
     from fastapi import FastAPI, BackgroundTasks
-    from fastapi.responses import FileResponse
+    from fastapi.responses import FileResponse, HTMLResponse
     from pydantic import BaseModel
 
     from auteur.agents.showrunner import Showrunner
     from auteur.config import ProductionConfig
 
-    app = FastAPI(title="Auteur — running on Alibaba Cloud", version="0.1.0")
+    app = FastAPI(
+        title="Auteur — running on Alibaba Cloud",
+        version="0.1.0",
+        description="Budget-aware AI showrunner: premise → vertical short drama. "
+                    "Interactive API docs below; live viewer ships separately.",
+    )
 
-    class ProduceRequest(BaseModel):
-        premise: str
-        shots: int = 6
-        max_tokens: int = 120_000
-        max_spend_usd: float = 2.00
-        quality_gate: float = 0.0
-        dynamic_resolution: bool = False
-
-    class ProduceResponse(BaseModel):
-        final: str | None
-        storyboard: str | None = None
-        ledger: dict
-        manifest: dict | None = None
+    try:
+        from fastapi.middleware.cors import CORSMiddleware
+        app.add_middleware(
+            CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
+        )
+    except Exception:
+        pass
 
     @app.get("/healthz")
     def healthz() -> dict:
@@ -149,12 +168,71 @@ def build_app():
         return response
 
     @app.get("/productions/{prod_id}/final.mp4")
-    def get_final(prod_id: str) -> FileResponse:
+    def get_final(prod_id: str):
         path = Path("productions") / prod_id / "final.mp4"
         if not path.exists():
             from fastapi import HTTPException
             raise HTTPException(404, "production not found")
         return FileResponse(path, media_type="video/mp4")
+
+    @app.get("/productions/{prod_id}/storyboard.html", response_class=HTMLResponse)
+    def get_storyboard(prod_id: str):
+        path = Path("productions") / prod_id / "storyboard.html"
+        if not path.exists():
+            from fastapi import HTTPException
+            raise HTTPException(404, "storyboard not found")
+        return HTMLResponse(path.read_text())
+
+    @app.get("/gallery")
+    def gallery() -> list:
+        prods_dir = Path("productions")
+        out = []
+        for d in sorted(prods_dir.iterdir(), reverse=True) if prods_dir.exists() else []:
+            mp = d / "manifest.json"
+            if not d.is_dir() or not mp.exists():
+                continue
+            try:
+                m = json.loads(mp.read_text())
+            except Exception:
+                continue
+            out.append({
+                "id": d.name,
+                "logline": m.get("logline", ""),
+                "premise": m.get("premise", ""),
+                "shots": len(m.get("shots", [])),
+                "avg_score": m.get("report_card", {}).get("avg_critic_score", 0),
+                "tokens": m.get("budget", {}).get("tokens_used", 0),
+                "has_video": (d / "final.mp4").exists(),
+            })
+        return out
+
+    @app.get("/metrics")
+    def metrics() -> dict:
+        prods_dir = Path("productions")
+        total = scored = sum_tokens = sum_clips = 0
+        sum_score = sum_cost = 0.0
+        for d in prods_dir.iterdir() if prods_dir.exists() else []:
+            mp = d / "manifest.json"
+            if not d.is_dir() or not mp.exists():
+                continue
+            try:
+                m = json.loads(mp.read_text())
+            except Exception:
+                continue
+            total += 1
+            rc, b = m.get("report_card", {}), m.get("budget", {})
+            if rc.get("avg_critic_score"):
+                sum_score += rc["avg_critic_score"]; scored += 1
+            sum_tokens += b.get("tokens_used", 0)
+            sum_clips += b.get("clips_used", 0)
+            sum_cost += b.get("estimated_cost_usd", 0) or 0
+        return {
+            "productions": total,
+            "avg_score": round(sum_score / scored, 2) if scored else 0,
+            "total_tokens": sum_tokens, "total_clips": sum_clips,
+            "total_cost_usd": round(sum_cost, 2),
+            "avg_tokens_per_film": round(sum_tokens / total) if total else 0,
+        }
 
     return app
 

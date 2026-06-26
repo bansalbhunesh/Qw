@@ -23,19 +23,63 @@ from .config import ProductionConfig
 from .events import bus
 
 
+class ProduceReq(BaseModel):
+    premise: str
+    shots: int = 6
+    quality_gate: float = 0.0
+    max_spend_usd: float = 2.00
+    dynamic_resolution: bool = False
+
+
 def build_viewer_app() -> FastAPI:
     app = FastAPI(title="Auteur — Live Production Viewer")
 
-    class ProduceReq(BaseModel):
-        premise: str
-        shots: int = 6
-        quality_gate: float = 0.0
-        max_spend_usd: float = 2.00
-        dynamic_resolution: bool = False
+    try:
+        from fastapi.middleware.cors import CORSMiddleware
+        app.add_middleware(
+            CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
+        )
+    except Exception:
+        pass
 
     @app.get("/", response_class=HTMLResponse)
     def index():
         return _VIEWER_HTML
+
+    @app.get("/gallery", response_class=HTMLResponse)
+    def gallery_page():
+        return _GALLERY_HTML
+
+    @app.get("/api/metrics")
+    def metrics():
+        """Aggregate stats across every production on disk — the showcase headline."""
+        prods_dir = Path("productions")
+        total = scored = 0
+        sum_score = sum_tokens = sum_clips = 0
+        sum_cost = 0.0
+        for d in (prods_dir.iterdir() if prods_dir.exists() else []):
+            mp = d / "manifest.json"
+            if not d.is_dir() or not mp.exists():
+                continue
+            try:
+                m = json.loads(mp.read_text())
+            except Exception:
+                continue
+            total += 1
+            rc, b = m.get("report_card", {}), m.get("budget", {})
+            if rc.get("avg_critic_score"):
+                sum_score += rc["avg_critic_score"]; scored += 1
+            sum_tokens += b.get("tokens_used", 0)
+            sum_clips += b.get("clips_used", 0)
+            sum_cost += b.get("estimated_cost_usd", 0) or 0
+        return {
+            "productions": total,
+            "avg_score": round(sum_score / scored, 2) if scored else 0,
+            "total_tokens": sum_tokens,
+            "total_clips": sum_clips,
+            "total_cost_usd": round(sum_cost, 2),
+            "avg_tokens_per_film": round(sum_tokens / total) if total else 0,
+        }
 
     @app.post("/api/produce")
     def produce(req: ProduceReq):
@@ -307,6 +351,7 @@ _VIEWER_HTML = """\
   <div class="logo"><span>Auteur</span></div>
   <div class="header-tag">AI Showrunner</div>
   <div class="header-spacer"></div>
+  <a href="/gallery" style="color:var(--dim);text-decoration:none;font-size:0.8rem;margin-right:1rem">Gallery &rarr;</a>
   <div class="header-status" id="status">Ready</div>
 </div>
 <div class="main">
@@ -548,6 +593,93 @@ function budgetBlock(label,used,total){
 </script>
 </body>
 </html>
+"""
+
+
+_GALLERY_HTML = """\
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auteur — Production Gallery</title>
+<style>
+  :root { --bg:#08080d; --surface:#0f0f18; --card:#151520; --border:#252535;
+    --accent:#6366f1; --green:#22c55e; --amber:#f59e0b; --red:#ef4444;
+    --text:#e8e8f0; --dim:#7c7c96; --muted:#55556a; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text)}
+  .header{background:var(--surface);border-bottom:1px solid var(--border);padding:1rem 2rem;
+    display:flex;align-items:center;gap:1rem}
+  .logo{font-size:1.4rem;font-weight:800}.logo span{color:var(--accent)}
+  .header-tag{font-size:0.7rem;color:var(--dim);background:rgba(99,102,241,0.15);
+    padding:0.2rem 0.5rem;border-radius:4px;font-weight:600;text-transform:uppercase}
+  .spacer{flex:1}
+  a.nav{color:var(--dim);text-decoration:none;font-size:0.8rem}
+  .wrap{max-width:1200px;margin:0 auto;padding:2rem}
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem;
+    margin-bottom:2rem}
+  .metric{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1.1rem;text-align:center}
+  .metric .v{font-size:1.8rem;font-weight:800;color:#fff}
+  .metric .l{font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;margin-top:0.3rem}
+  h2{font-size:1.1rem;color:var(--accent);margin-bottom:1rem}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.25rem}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;
+    transition:transform 0.15s,border-color 0.15s;text-decoration:none;color:inherit}
+  .card:hover{transform:translateY(-3px);border-color:var(--accent)}
+  .card video{width:100%;height:180px;object-fit:cover;background:#000;display:block}
+  .card .novid{height:180px;display:flex;align-items:center;justify-content:center;
+    color:var(--muted);font-size:0.8rem;background:#0d0d12}
+  .card .body{padding:1rem}
+  .card .logline{font-size:0.9rem;color:#fff;margin-bottom:0.5rem;line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .card .meta{display:flex;gap:0.8rem;font-size:0.75rem;color:var(--dim);flex-wrap:wrap}
+  .badge{padding:0.1rem 0.45rem;border-radius:4px;font-weight:700;font-size:0.7rem}
+  .links{margin-top:0.6rem;display:flex;gap:0.8rem}
+  .links a{font-size:0.72rem;color:var(--accent);text-decoration:none}
+  .empty{text-align:center;color:var(--muted);padding:4rem;font-size:0.9rem}
+</style></head>
+<body>
+<div class="header">
+  <div class="logo"><span>Auteur</span></div>
+  <div class="header-tag">Gallery</div>
+  <div class="spacer"></div>
+  <a class="nav" href="/">&larr; Back to Studio</a>
+</div>
+<div class="wrap">
+  <div class="metrics" id="metrics"></div>
+  <h2>Productions</h2>
+  <div class="grid" id="grid"><div class="empty">Loading…</div></div>
+</div>
+<script>
+function scoreColor(s){return s>=8?'#22c55e':s>=7?'#6366f1':s>=5?'#f59e0b':'#ef4444';}
+async function load(){
+  const m=await (await fetch('/api/metrics')).json();
+  document.getElementById('metrics').innerHTML=[
+    ['Productions',m.productions],['Avg Score',m.avg_score+'/10'],
+    ['Total Clips',m.total_clips],['Total Tokens',(m.total_tokens||0).toLocaleString()],
+    ['Avg Tokens/Film',(m.avg_tokens_per_film||0).toLocaleString()],['Total Spend','$'+(m.total_cost_usd||0).toFixed(2)],
+  ].map(([l,v])=>`<div class="metric"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+  const items=await (await fetch('/api/gallery')).json();
+  const grid=document.getElementById('grid');
+  if(!items.length){grid.innerHTML='<div class="empty">No productions yet. Make one in the Studio.</div>';return;}
+  grid.innerHTML=items.map(p=>{
+    const vid=p.has_video?`<video src="/productions/${p.id}/final.mp4" muted loop onmouseover="this.play()" onmouseout="this.pause()"></video>`:'<div class="novid">no video</div>';
+    const sc=p.avg_score||0;
+    const sb=p.has_storyboard?`<a href="/productions/${p.id}/storyboard.html" target="_blank">Storyboard →</a>`:'';
+    return `<a class="card" href="/productions/${p.id}/storyboard.html" target="_blank">${vid}
+      <div class="body">
+        <div class="logline">${(p.logline||p.premise||'Untitled').replace(/</g,'&lt;')}</div>
+        <div class="meta">
+          <span class="badge" style="background:${scoreColor(sc)}22;color:${scoreColor(sc)}">${sc.toFixed(1)}/10</span>
+          <span>${p.shots} shots</span>
+          <span>${(p.tokens||0).toLocaleString()} tok</span>
+        </div>
+        <div class="links">${sb}<a href="/productions/${p.id}/manifest.json" target="_blank">manifest</a></div>
+      </div></a>`;
+  }).join('');
+}
+load();
+</script>
+</body></html>
 """
 
 
