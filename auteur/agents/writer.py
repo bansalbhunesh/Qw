@@ -49,7 +49,9 @@ Rules:
 - The Button MUST land an emotional punch. Give it importance >= 0.8.
 - Exactly {shots} beats. Importance reflects how much the entire piece depends on that beat \
 succeeding visually.
-- Each beat must be achievable in a single continuous shot (~5-10 seconds of video)."""
+- Each beat must be achievable in a single continuous shot (~5-10 seconds of video).
+- At least half the beats should include spoken dialogue — inner monologue, radio comms, \
+whispered words, or direct speech. Silence is powerful only when earned."""
 
 _SHOTS_SYS = """\
 You are a cinematographer-screenwriter hybrid. You write shot descriptions that a text-to-video \
@@ -69,7 +71,9 @@ For EACH beat, write one shot. Return JSON:
     {{
       "beat_index": 0,
       "description": "what we SEE on screen — camera angle, subject blocking, action, lighting",
-      "dialogue": "the exact spoken line for this shot, or empty string if no dialogue",
+      "dialogue": "the exact spoken line for this shot — inner monologue, radio chatter, or \
+direct speech. At least HALF of all shots MUST have dialogue. Use empty string ONLY for purely \
+visual beats where silence is dramatically motivated.",
       "video_prompt": "a self-contained, vivid text-to-video prompt. RULES: (1) describe \
 every person by physical appearance — age, build, hair, clothing, skin tone — never use names. \
 (2) specify camera: shot size (CU/MCU/MS/WS), movement (static/push-in/pan/tracking), lens \
