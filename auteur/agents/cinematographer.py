@@ -166,6 +166,11 @@ class Cinematographer:
             f"{DASHSCOPE_NATIVE_BASE}/services/aigc/video-generation/video-synthesis",
             json=payload, headers=headers, timeout=30,
         )
+        if r.status_code >= 400:
+            # The response body carries the real reason (quota, model access, region, etc.).
+            # Surface it loudly — a bare 403 is undebuggable without it.
+            _log.error("Wan create-task %d for model=%s: %s",
+                       r.status_code, model, r.text[:500])
         r.raise_for_status()
         body = r.json()
         task_id = body.get("output", {}).get("task_id")
