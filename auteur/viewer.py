@@ -147,6 +147,13 @@ _VIEWER_HTML = """\
   .axis-val { font-size: 0.7rem; font-weight: 600; width: 2rem; }
   .fix-note { font-size: 0.75rem; color: var(--red); margin-top: 0.3rem; font-style: italic; }
   .dim { color: var(--dim); }
+  .summary-card { padding: 0.5rem 0; }
+  .summary-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.6rem; color: var(--green); }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+                  gap: 0.5rem; margin-bottom: 0.6rem; }
+  .summary-stat { text-align: center; }
+  .stat-value { display: block; font-size: 1.3rem; font-weight: 700; color: var(--text); }
+  .stat-label { font-size: 0.7rem; color: var(--dim); }
   #video-wrap { margin-top: 2rem; text-align: center; display: none; }
   #video-wrap video { max-width: 360px; border-radius: 12px; border: 2px solid var(--accent); }
   @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -242,12 +249,22 @@ function renderEvent(ev) {
     if (ev.estimated_cost_usd > 0) body += `<div class="dim" style="margin-top:0.3rem">Est. spend: $${ev.estimated_cost_usd.toFixed(2)} / $${ev.max_spend_usd.toFixed(2)}</div>`;
   } else if (ev.kind === 'score_complete') {
     body = `<strong>Score composed:</strong> mood=${ev.mood}, intensity=${(ev.intensity||0).toFixed(1)}`;
+  } else if (ev.kind === 'quality_gate') {
+    body = `<strong>Quality gate:</strong> kept ${ev.kept} clips, dropped ${ev.dropped} scoring below ${(ev.threshold||0).toFixed(1)}`;
   } else if (ev.kind === 'production_complete') {
     const b = ev.budget || {};
-    body = `<strong>Production wrapped!</strong> ${b.tokens_used||0} tokens, ${b.clips_used||0} clips, ${b.retakes_used||0} retakes`;
+    const pct = b.token_budget ? (b.tokens_used/b.token_budget*100).toFixed(1) : '0';
+    body = `<div class="summary-card">`;
+    body += `<div class="summary-title">Production Wrapped</div>`;
+    body += `<div class="summary-grid">`;
+    body += `<div class="summary-stat"><span class="stat-value">${b.tokens_used||0}</span><span class="stat-label">tokens (${pct}% of budget)</span></div>`;
+    body += `<div class="summary-stat"><span class="stat-value">${b.clips_used||0}</span><span class="stat-label">clips rendered</span></div>`;
+    body += `<div class="summary-stat"><span class="stat-value">${b.retakes_used||0}</span><span class="stat-label">retakes</span></div>`;
+    if (b.estimated_cost_usd > 0) body += `<div class="summary-stat"><span class="stat-value">$${b.estimated_cost_usd.toFixed(2)}</span><span class="stat-label">spent</span></div>`;
+    body += `</div>`;
     body += budgetBar('Tokens', b.tokens_used, b.token_budget);
     body += budgetBar('Clips', b.clips_used, b.clip_budget);
-    if (b.estimated_cost_usd > 0) body += `<div class="dim" style="margin-top:0.3rem">Total spend: $${b.estimated_cost_usd.toFixed(2)}</div>`;
+    body += `</div>`;
   } else {
     body = JSON.stringify(ev).slice(0,200);
   }

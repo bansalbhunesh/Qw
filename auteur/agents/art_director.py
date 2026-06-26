@@ -85,6 +85,7 @@ class ArtDirector:
         ]
         bible = StyleBible(
             look=data.get("look", ""),
+            palette=data.get("palette", ""),
             characters=characters,
         )
         _log.info(
@@ -108,7 +109,10 @@ class ArtDirector:
             )
             parts.append(f"Characters in this scene — {char_block}.")
 
-        if bible.look:
-            parts.append(f"Visual style — {bible.look}.")
+        style_desc = bible.look
+        if bible.palette:
+            style_desc = f"{style_desc}. Color palette: {bible.palette}" if style_desc else f"Color palette: {bible.palette}"
+        if style_desc:
+            parts.append(f"Visual style — {style_desc}.")
 
         return " ".join(parts)

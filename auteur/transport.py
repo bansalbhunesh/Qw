@@ -152,6 +152,7 @@ class MockTransport:
         return json.dumps({
             "look": "muted teal grade, 35mm anamorphic, shallow depth of field, soft practical lighting, "
                     "warm amber highlights, cool shadow tones",
+            "palette": "slate blue, warm amber, deep charcoal",
             "characters": [
                 {"name": "Mara", "description": "late 30s, short dark hair parted left, deep brown eyes, "
                  "navy scrubs with ID badge, tired but kind expression, olive skin",

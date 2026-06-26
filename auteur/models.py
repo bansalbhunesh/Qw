@@ -17,6 +17,7 @@ class StyleBible:
     """The visual contract every shot must honour. Generated once, cached, reused."""
 
     look: str                # e.g. "muted teal grade, 35mm, shallow depth of field"
+    palette: str = ""        # e.g. "slate blue, warm amber, deep charcoal"
     characters: list[Character] = field(default_factory=list)
     reference_image_url: str | None = None  # OSS URL of a key-frame anchor, if any
 
