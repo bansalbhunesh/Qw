@@ -322,6 +322,7 @@ _VIEWER_HTML = """\
         <div class="config-field"><label>Shots</label><input id="cfg-shots" type="number" value="6" min="2" max="12"></div>
         <div class="config-field"><label>Max spend</label><input id="cfg-spend" type="number" value="2.00" min="0.10" max="20.00" step="0.10"></div>
         <div class="config-field"><label>Quality gate</label><input id="cfg-gate" type="number" value="0" min="0" max="10" step="0.5"></div>
+        <div class="config-field"><label>Dynamic res</label><input id="cfg-dynres" type="checkbox"></div>
       </div>
     </div>
     <div id="timeline"></div>
@@ -367,7 +368,7 @@ function start(){
   document.getElementById('status').className='header-status active pulsing';
   ['sb-script','sb-style','sb-shots','sb-budget'].forEach(id=>document.getElementById(id).style.display='none');
   fetch('/api/produce',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({premise,shots,quality_gate:gate,max_spend_usd:spend})})
+    body:JSON.stringify({premise,shots,quality_gate:gate,max_spend_usd:spend,dynamic_resolution:document.getElementById('cfg-dynres').checked})})
     .then(r=>r.json()).then(d=>{window._prodId=d.id;listen();});
 }
 
@@ -406,7 +407,12 @@ function addEvent(ev){
     const w=document.getElementById('video-wrap');
     const v=document.getElementById('final-video');
     v.src='/productions/'+window._prodId+'/final.mp4';
-    document.getElementById('video-label').textContent='Production '+window._prodId;
+    const lbl=document.getElementById('video-label');
+    lbl.innerHTML='Production '+window._prodId+
+      ' &nbsp; <a href="/productions/'+window._prodId+'/storyboard.html" target="_blank" '+
+      'style="color:var(--accent);font-size:0.75rem;text-decoration:none">View Storyboard &rarr;</a>'+
+      ' &nbsp; <a href="/productions/'+window._prodId+'/manifest.json" target="_blank" '+
+      'style="color:var(--dim);font-size:0.7rem;text-decoration:none">manifest</a>';
     w.style.display='block';
     w.scrollIntoView({behavior:'smooth'});
   }
