@@ -258,6 +258,34 @@ def test_report_card_has_quality_arc(tmp_path):
         assert "retaken" in point
 
 
+def test_report_card_has_efficiency_analysis(tmp_path):
+    """Report card should include routing efficiency analysis."""
+    show = Showrunner(_cfg(shots=3), workdir=tmp_path)
+    prod = show.run("An architect draws a building that can only exist in dreams")
+    import json
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    eff = manifest.get("report_card", {}).get("efficiency", {})
+    assert "actual_tokens" in eff
+    assert "naive_estimate_tokens" in eff
+    assert eff["actual_tokens"] > 0
+
+
+def test_transition_planning():
+    """Editor should plan transitions based on beat tone changes."""
+    from auteur.agents.editor import Editor
+    from auteur.models import Beat
+
+    beats = [
+        Beat(index=0, label="Hook", summary="...", importance=1.0, tone="tense"),
+        Beat(index=1, label="Setup", summary="...", importance=0.7, tone="tense"),
+        Beat(index=2, label="Turn", summary="...", importance=0.8, tone="cathartic"),
+    ]
+    transitions = Editor.plan_transitions(beats)
+    assert len(transitions) == 2
+    assert transitions[0] == "dissolve"  # same tone → dissolve
+    assert transitions[1] == "fade"     # cathartic → fade
+
+
 def test_naive_baseline_runs(tmp_path):
     naive = NaiveShowrunner(_cfg(shots=3), workdir=tmp_path)
     prod = naive.run("A street vendor and the regular who never speaks")

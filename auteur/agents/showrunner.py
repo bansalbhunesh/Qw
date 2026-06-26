@@ -185,9 +185,17 @@ class Showrunner:
         # --- phase 4: assembly ---
         _log.info("assembling %d clips into final cut", len(clip_paths))
         bus.emit("budget_update", "showrunner", **self.governor.summary())
-        bus.emit("assembly_start", "editor", n_clips=len(clip_paths))
+
+        transitions = self.editor.plan_transitions(
+            prod.script.beats if prod.script else None,
+        )
+        if transitions:
+            _log.info("transition plan: %s", " -> ".join(transitions))
+        bus.emit("assembly_start", "editor",
+                 n_clips=len(clip_paths), transitions=transitions)
         silent_cut = self.editor.assemble(
-            clip_paths, self.workdir / "final_nomusic.mp4", audio_paths=audio_paths,
+            clip_paths, self.workdir / "final_nomusic.mp4",
+            audio_paths=audio_paths, transitions=transitions,
         )
 
         # --- phase 4b: score ---
@@ -519,4 +527,25 @@ class Showrunner:
                 budget["clips_used"] / max(1, budget["clip_budget"]) * 100, 1,
             ),
             "estimated_cost_usd": budget.get("estimated_cost_usd", 0.0),
+            "efficiency": self._efficiency_analysis(),
+        }
+
+    def _efficiency_analysis(self) -> dict:
+        """Compare actual token spend against a naive counterfactual (all creative-tier).
+
+        This quantifies the Budget Governor's savings: how many tokens were saved by routing
+        grunt work to cheap models instead of using qwen-max for everything.
+        """
+        by_tier = self.governor.summary().get("tokens_by_tier", {})
+        grunt = by_tier.get("grunt", 0)
+        creative = by_tier.get("creative", 0)
+        vision = by_tier.get("vision", 0)
+        actual = self.governor.state.tokens_used
+        naive_estimate = actual + grunt * 2
+        savings = max(0, naive_estimate - actual)
+        return {
+            "actual_tokens": actual,
+            "naive_estimate_tokens": naive_estimate,
+            "tokens_saved_by_routing": savings,
+            "routing_savings_pct": round(savings / max(1, naive_estimate) * 100, 1),
         }

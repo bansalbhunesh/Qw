@@ -164,7 +164,7 @@ Two layers, both metered as first-class production stages:
 - [x] Dockerfile with system ffmpeg + health check
 - [x] Visual continuity: i2v frame-chaining for cross-shot character consistency (+ t2v fallback)
 - [x] Score: AI-directed mood + procedural music bed mixed under dialogue
-- [x] Test suite: 67 tests (budget, pipeline, media, sound, retry, LLM, benchmark)
+- [x] Test suite: 69 tests (budget, pipeline, media, sound, retry, LLM, benchmark)
 - [x] Real-money spend guardrail: per-resolution clip pricing, hard USD cap, --estimate dry-run
 - [x] Default to wan2.2-t2v-plus (free-tier available); wan2.7 paywalled via FreeTierOnly 403
 - [x] Voice isolation: TTS failures no longer discard rendered clips
@@ -184,7 +184,9 @@ Two layers, both metered as first-class production stages:
 - [x] Tier-level token breakdown in ledger, CLI, and benchmark report (proves model routing works)
 - [x] Adaptive retake threshold: importance bar rises as retakes deplete (scarcity-aware budgeting)
 - [x] Quality arc: per-shot score trajectory in manifest, CLI, and viewer for production analytics
-- [x] 67 tests (budget, pipeline, media, sound, retry, LLM, benchmark)
+- [x] Tone-aware scene transitions: dissolve for continuity, hard cut for contrast, fade for climax
+- [x] Governor decision log: human-readable retake reasoning in the manifest
+- [x] 69 tests (budget, pipeline, media, sound, retry, LLM, benchmark)
 - [ ] Run the benchmark live; populate README table with real scores
 - [ ] Deploy to Alibaba Cloud ECS; record proof-of-deployment video
 - [ ] 3-min demo video + architecture diagram export + blog post

@@ -142,6 +142,19 @@ def main(argv: list[str] | None = None) -> int:
             imp_bar = '*' * int(s.importance * 5)
             print(f"    {s.index}. {score} imp={imp_bar:5s}{flag}  {s.description[:50]}")
 
+    # Read manifest for efficiency analysis
+    manifest_path = Path(args.out) / "manifest.json"
+    if manifest_path.exists():
+        import json as _json
+        manifest = _json.loads(manifest_path.read_text())
+        eff = manifest.get("report_card", {}).get("efficiency", {})
+        if eff.get("tokens_saved_by_routing", 0) > 0:
+            print(f"\n  Routing efficiency:")
+            print(f"    Actual tokens    : {eff['actual_tokens']:,}")
+            print(f"    Naive estimate   : {eff['naive_estimate_tokens']:,}")
+            print(f"    Saved by routing : {eff['tokens_saved_by_routing']:,}  "
+                  f"({eff['routing_savings_pct']:.0f}%)")
+
     print(f"{'=' * 60}")
     return 0
 

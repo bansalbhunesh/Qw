@@ -110,17 +110,43 @@ class Editor:
         return {"overall": 5.0, "fix": ""}
 
     @staticmethod
+    def plan_transitions(beats: list | None) -> list[str]:
+        """Pick a transition style for each cut based on adjacent beat tones.
+
+        Returns a list of N-1 transitions for N clips. The decision:
+        - Same or similar tone → dissolve (continuity)
+        - Contrasting tone → hard cut (punctuation)
+        - Any tone → cathartic/climax → fade (dramatic emphasis)
+        """
+        if not beats or len(beats) < 2:
+            return []
+        climactic = {"cathartic", "climax", "triumphant"}
+        transitions: list[str] = []
+        for i in range(len(beats) - 1):
+            t1 = getattr(beats[i], "tone", "") if hasattr(beats[i], "tone") else beats[i].get("tone", "")
+            t2 = getattr(beats[i + 1], "tone", "") if hasattr(beats[i + 1], "tone") else beats[i + 1].get("tone", "")
+            if t2.lower() in climactic:
+                transitions.append("fade")
+            elif t1 == t2:
+                transitions.append("dissolve")
+            else:
+                transitions.append("cut")
+        return transitions
+
+    @staticmethod
     def assemble(
         clip_paths: list[str],
         out_path: str | Path,
         *,
         audio_paths: list[str | None] | None = None,
         crossfade: bool = True,
+        transitions: list[str] | None = None,
     ) -> str:
         """Assemble approved clips into one vertical short.
 
         If audio_paths are provided, each clip gets its dialogue overlaid before assembly.
-        Uses crossfade transitions between clips for cinematic quality.
+        Uses crossfade transitions between clips for cinematic quality. The `transitions`
+        list (one per cut) can specify "fade", "dissolve", or "cut" per transition.
         """
         final_clips: list[str] = []
         out_path = Path(out_path)

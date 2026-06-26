@@ -247,6 +247,9 @@ function renderEvent(ev) {
     body += budgetBar('Clips', ev.clips_used, ev.clip_budget);
     body += budgetBar('Retakes', ev.retakes_used, ev.retake_budget);
     if (ev.estimated_cost_usd > 0) body += `<div class="dim" style="margin-top:0.3rem">Est. spend: $${ev.estimated_cost_usd.toFixed(2)} / $${ev.max_spend_usd.toFixed(2)}</div>`;
+  } else if (ev.kind === 'assembly_start') {
+    body = `<strong>Assembling ${ev.n_clips} clips</strong> into final cut`;
+    if (ev.transitions && ev.transitions.length) body += `<br><span class="dim">Transitions: ${ev.transitions.join(' → ')}</span>`;
   } else if (ev.kind === 'score_complete') {
     body = `<strong>Score composed:</strong> mood=${ev.mood}, intensity=${(ev.intensity||0).toFixed(1)}`;
   } else if (ev.kind === 'parallel_render_start') {
