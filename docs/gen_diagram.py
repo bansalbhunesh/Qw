@@ -103,7 +103,7 @@ def main():
     arrow(draw, 450, 220, 450, 250, DIM, "script")
 
     # --- Cinematographer ---
-    box(draw, 660, 140, 300, 80, "Cinematographer", "wan2.7-t2v / i2v  |  async render", accent_line=WAN_PURPLE)
+    box(draw, 660, 140, 300, 80, "Cinematographer", "wan t2v / i2v  |  async render", accent_line=WAN_PURPLE)
     arrow(draw, 590, 180, 660, 180, DIM, "bible + prompt")
 
     # --- Critic ---
@@ -132,7 +132,7 @@ def main():
         bfont = sub_font
     budget_items = [
         "Token metering (per-tier)",
-        "Clip render cap",
+        "Clip render cap + USD ceiling",
         "Importance-weighted retakes",
         "Early-exit on pass",
         "Pre-flight gating",
@@ -158,7 +158,7 @@ def main():
         fill="#0f1520", outline=QWEN_BLUE, accent_line=QWEN_BLUE)
 
     model_items = ["qwen-max (creative)", "qwen-flash (grunt)", "qwen-vl-max (vision)",
-                   "wan2.7-t2v (video)", "CosyVoice (TTS)"]
+                   "wan2.2-t2v-plus (video)", "CosyVoice v3-plus (TTS)"]
     for i, m in enumerate(model_items):
         draw.text((98, 905 + i * 18), f"  {m}", fill=DIM, font=bfont)
 

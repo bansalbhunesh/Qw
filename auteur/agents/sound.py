@@ -33,6 +33,17 @@ _VOICE_MAP: dict[str, str] = {
     "neutral": "longshu",
     "deep": "longjielidou",
     "soft": "longxiaoxia",
+    "commanding": "longjielidou",
+    "gentle": "longxiaoxia",
+    "rough": "longjielidou",
+    "calm": "longshu",
+    "bright": "longxiaoxia",
+    "raspy": "longjielidou",
+    "soothing": "longshu",
+    "elderly": "longshu",
+    "young": "longxiaoxia",
+    "husky": "longjielidou",
+    "crisp": "longxiaoxia",
 }
 
 # Mood -> a root/third/fifth triad (Hz) for the procedural score bed. Lower octaves read as
@@ -66,7 +77,7 @@ class Sound:
             self.governor.record_tts(STAGE, "mock-tts", note=text[:60])
             return out_path
 
-        voice_id = _VOICE_MAP.get(character.voice, "longxiaochun") if character else "longxiaochun"
+        voice_id = _VOICE_MAP.get(character.voice, "longshu") if character else "longshu"
         _log.info("voicing: '%s' (voice=%s)", text[:50], voice_id)
 
         def _do_tts():

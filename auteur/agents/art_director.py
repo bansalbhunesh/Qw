@@ -42,7 +42,7 @@ tones, vertical 9:16'",
 hair (color, length, style), eye color, skin tone, facial features, clothing (specific items, \
 colors, textures), any distinguishing marks or accessories. Must be detailed enough to render \
 consistently across multiple shots without any additional context.",
-      "voice": "warm|gravelly|youthful|neutral|husky|crisp"
+      "voice": "warm|gravelly|youthful|neutral|deep|soft|commanding|gentle|husky|crisp"
     }}
   ]
 }}

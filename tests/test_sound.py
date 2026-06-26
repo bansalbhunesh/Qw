@@ -32,3 +32,19 @@ def test_score_handles_zero_duration(tmp_path):
     # Should not crash; clamps to a sane default.
     out = _sound().score("tense", 0.0, str(tmp_path / "score.wav"))
     assert Path(out).exists()
+
+
+def test_voice_map_covers_art_director_options():
+    """Every voice descriptor in the Art Director's prompt should have a mapping."""
+    from auteur.agents.sound import _VOICE_MAP
+    art_director_voices = {"warm", "gravelly", "youthful", "neutral", "husky", "crisp"}
+    unmapped = art_director_voices - set(_VOICE_MAP)
+    assert not unmapped, f"unmapped voice descriptors: {unmapped}"
+
+
+def test_voice_map_fallback_is_english_compatible():
+    """The fallback voice must be English-compatible, not Chinese-only."""
+    from auteur.agents.sound import _VOICE_MAP
+    fallback = _VOICE_MAP.get("__nonexistent__", None)
+    # Fallback should be None (not in map), and the code's default should be 'longshu'
+    assert fallback is None

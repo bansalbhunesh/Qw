@@ -21,7 +21,7 @@ Budget Governor (`auteur/budget.py`) is the optimizer's accountant; the agents a
 | `auteur/models.py` | Data structures (Beat, Shot, Script, StyleBible, Production) |
 | `auteur/agents/writer.py` | Premise → beat sheet → cinematic shot-level script (structured JSON) |
 | `auteur/agents/art_director.py` | Character & Style Bible — one generation, cached across every shot |
-| `auteur/agents/cinematographer.py` | Wan2.7 t2v/i2v jobs, i2v continuity chaining with t2v fallback, download verification |
+| `auteur/agents/cinematographer.py` | Wan t2v/i2v jobs, i2v continuity chaining with t2v fallback, download verification |
 | `auteur/agents/sound.py` | CosyVoice TTS (character voices) + procedural mood-keyed score bed |
 | `auteur/agents/editor.py` | Qwen-VL critic loop + audio overlay + crossfade assembly + score mix |
 | `auteur/agents/showrunner.py` | Orchestrator — budgeted control loop, partial-failure recovery, manifest |
@@ -129,13 +129,15 @@ Two layers, both metered as first-class production stages:
 - [x] Dockerfile with system ffmpeg + health check
 - [x] Visual continuity: i2v frame-chaining for cross-shot character consistency (+ t2v fallback)
 - [x] Score: AI-directed mood + procedural music bed mixed under dialogue
-- [x] Test suite: 41 tests (budget, pipeline, media, sound, retry, LLM, benchmark)
+- [x] Test suite: 43 tests (budget, pipeline, media, sound, retry, LLM, benchmark)
 - [x] Real-money spend guardrail: per-resolution clip pricing, hard USD cap, --estimate dry-run
 - [x] Default to wan2.2-t2v-plus (free-tier available); wan2.7 paywalled via FreeTierOnly 403
 - [x] Voice isolation: TTS failures no longer discard rendered clips
 - [x] i2v OSS upload: anchor frames uploaded to DashScope's temp OSS bucket for Wan i2v API
 - [x] CosyVoice v3-plus with English-compatible voices for international endpoint
-- [ ] Run the benchmark live; populate README table with real scores
+- [x] TTS voice fallback fix: default to English-compatible `longshu` (was Chinese-only `longxiaochun`)
+- [x] Expanded voice descriptor map: 17 Art Director voice types → CosyVoice ID mapping
+- [x] Mock benchmark differentiation: critic/judge seed on shot-specific content, not system prompt
 - [ ] Run the benchmark live; populate README table with real scores
 - [ ] Deploy to Alibaba Cloud ECS; record proof-of-deployment video
 - [ ] 3-min demo video + architecture diagram export + blog post

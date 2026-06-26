@@ -75,7 +75,12 @@ def _text_of(messages: list[dict[str, Any]]) -> str:
         if isinstance(c, str):
             out.append(c)
         elif isinstance(c, list):
-            out.extend(part.get("text", "") for part in c if part.get("type") == "text")
+            for part in c:
+                if part.get("type") == "text":
+                    out.append(part.get("text", ""))
+                elif part.get("type") == "image_url":
+                    url = part.get("image_url", {}).get("url", "")
+                    out.append(url[-200:] if len(url) > 200 else url)
     return "\n".join(out)
 
 
@@ -158,7 +163,7 @@ class MockTransport:
         })
 
     def _critique(self, text: str) -> str:
-        s = _seed("critique", text[:200]) % 100
+        s = _seed("critique", text[-300:]) % 100
         overall = 5.0 + (s % 50) / 10.0
         fix = "" if overall >= 7.0 else "tighten framing and increase contrast on the subject"
         return json.dumps({
@@ -170,7 +175,7 @@ class MockTransport:
         })
 
     def _judge(self, text: str) -> str:
-        s = _seed("judge", text[:200]) % 100
+        s = _seed("judge", text) % 100
         base = 6.5 + (s % 30) / 10.0
         return json.dumps({
             "narrative_coherence": round(base, 1),
