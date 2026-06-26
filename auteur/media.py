@@ -149,7 +149,34 @@ def extract_frames(clip_path: str | Path, n: int = 3) -> list[str]:
 def frame_to_data_uri(png_path: str | Path) -> str:
     raw = Path(png_path).read_bytes()
     b64 = base64.b64encode(raw).decode("ascii")
-    return f"data:image/png;base64,{b64}"
+    suffix = Path(png_path).suffix.lstrip(".").lower() or "png"
+    mime = "jpeg" if suffix in {"jpg", "jpeg"} else suffix
+    return f"data:image/{mime};base64,{b64}"
+
+
+def extract_last_frame(clip_path: str | Path, out_path: str | Path | None = None) -> str:
+    """Grab the final frame of a clip as a full-resolution PNG.
+
+    Used to seed the next shot (image-to-video) so the character and world carry forward
+    visually, not just textually. Tries an end-relative seek first, then a duration-based one.
+    """
+    clip_path = Path(clip_path)
+    out = Path(out_path) if out_path else clip_path.with_name(f"{clip_path.stem}_last.png")
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    # -sseof seeks relative to end-of-file; grab the last available frame.
+    try:
+        _run(["-sseof", "-0.5", "-i", str(clip_path), "-update", "1", "-frames:v", "1", str(out)])
+        if out.exists() and out.stat().st_size > 0:
+            return str(out)
+    except RuntimeError:
+        pass
+
+    # Fallback: seek to just before the probed duration.
+    dur = probe_duration(clip_path)
+    ts = max(0.0, dur - 0.3)
+    _run(["-ss", f"{ts:.2f}", "-i", str(clip_path), "-update", "1", "-frames:v", "1", str(out)])
+    return str(out)
 
 
 # --- audio overlay ------------------------------------------------------------------

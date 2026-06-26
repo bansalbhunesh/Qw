@@ -21,7 +21,7 @@ Budget Governor (`auteur/budget.py`) is the optimizer's accountant; the agents a
 | `auteur/models.py` | Data structures (Beat, Shot, Script, StyleBible, Production) |
 | `auteur/agents/writer.py` | Premise → beat sheet → cinematic shot-level script (structured JSON) |
 | `auteur/agents/art_director.py` | Character & Style Bible — one generation, cached across every shot |
-| `auteur/agents/cinematographer.py` | Wan2.7 t2v/i2v async jobs with retry, download verification |
+| `auteur/agents/cinematographer.py` | Wan2.7 t2v/i2v jobs, i2v continuity chaining with t2v fallback, download verification |
 | `auteur/agents/sound.py` | CosyVoice TTS async API with retry, character voice mapping |
 | `auteur/agents/editor.py` | Qwen-VL critic loop + audio overlay + crossfade assembly |
 | `auteur/agents/showrunner.py` | Orchestrator — budgeted control loop, partial-failure recovery, manifest |
@@ -37,16 +37,18 @@ Budget Governor (`auteur/budget.py`) is the optimizer's accountant; the agents a
 ```
 write(premise) -> script (beats carry importance + tone)
 build_bible(script) -> StyleBible (cached once)
+anchor = None                                     # previous shot's final frame
 for shot in shots:
     if not clip_budget: break
     try:
         prompt = inject(bible, shot.prompt)
-        clip = wan.render(prompt)                 # retried on transient failure
+        clip = wan.render(prompt, reference=anchor)  # i2v continuity, t2v fallback, retried
         frames = extract_frames(clip)             # ffmpeg -> data URIs
         score = qwen_vl.critique(shot, frames)    # 3-axis review
         if governor.should_retake(score, shot.importance):
-            clip = wan.render(prompt + critic.fix)   # exactly one reshoot
+            clip = wan.render(prompt + critic.fix, reference=anchor)  # exactly one reshoot
         voice = cosyvoice.voice(shot.dialogue)
+        anchor = extract_last_frame(clip)         # seed continuity for the next shot
         keep(clip, voice)
     except:
         log + skip (ship what we have)
@@ -62,6 +64,15 @@ flush(ledger.json, manifest.json)
 4. **Importance-weighted retakes** — scarce reshoot budget spent on the hook first.
 5. **Pre-flight gating** — refuse a call before paying if it would blow the ceiling.
 
+## Visual continuity (the hardest problem in AI short drama)
+
+Text-only character descriptions drift: the same prompt renders a different face shot to shot.
+Auteur threads each shot's **final frame** into the next render as an image-to-video seed
+(`Cinematographer.render(reference_image=...)`), so the character, costume, and world carry
+forward *visually*, not just textually. If an i2v render fails (model unsupported, transient
+error), it falls back to text-to-video automatically — continuity is an upgrade, never a
+single point of failure. Toggle with `--no-consistency`.
+
 ## Resilience
 
 - **Exponential-backoff retry** on all network calls (LLM, Wan, TTS, OSS) with jitter.
@@ -71,6 +82,7 @@ flush(ledger.json, manifest.json)
 - **Vision fallback** — if Qwen-VL returns unparseable JSON, defaults to a safe neutral score.
 - **Download verification** — Wan clips are checked for minimum file size after download.
 - **Frame sampling robustness** — seeks past clip end are caught and skipped; fallback to first frame.
+- **i2v → t2v fallback** — if image-to-video continuity fails, the shot still renders via t2v.
 
 ## Mock mode
 
@@ -95,7 +107,8 @@ flush(ledger.json, manifest.json)
 - [x] Structured logging across all agents
 - [x] Event bus + live web viewer (SSE streaming for the demo video)
 - [x] Dockerfile with system ffmpeg + health check
-- [x] Test suite: 30 tests (budget, pipeline, media, retry, LLM, benchmark)
+- [x] Visual continuity: i2v frame-chaining for cross-shot character consistency (+ t2v fallback)
+- [x] Test suite: 32 tests (budget, pipeline, media, retry, LLM, benchmark)
 - [ ] Wire `DASHSCOPE_API_KEY`; validate Wan2.7 / CosyVoice request shapes live
 - [ ] OSS round-trip validation with real bucket
 - [ ] Run the benchmark live; populate README table with real scores

@@ -23,6 +23,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-clips", type=int, default=8, help="clip render budget")
     parser.add_argument("--max-retakes", type=int, default=4, help="retake budget")
     parser.add_argument("--out", default="out", help="output directory")
+    parser.add_argument(
+        "--no-consistency", action="store_true",
+        help="disable image-to-video continuity (render every shot independently)",
+    )
     parser.add_argument("--verbose", "-v", action="store_true", help="debug logging")
     args = parser.parse_args(argv)
 
@@ -30,7 +34,7 @@ def main(argv: list[str] | None = None) -> int:
     _logmod.setup(logging.DEBUG if args.verbose else logging.INFO)
     _log = _logmod.get("cli")
 
-    cfg = ProductionConfig(shots=args.shots)
+    cfg = ProductionConfig(shots=args.shots, consistency=not args.no_consistency)
     cfg.budget.max_tokens = args.max_tokens
     cfg.budget.max_clips = args.max_clips
     cfg.budget.max_retakes = args.max_retakes

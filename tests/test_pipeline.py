@@ -48,6 +48,17 @@ def test_budget_governor_caps_clip_count(tmp_path):
     assert Path(prod.final_path).exists()  # ships what it has
 
 
+def test_consistency_mode_produces_anchor_frames(tmp_path):
+    cfg = _cfg(shots=3)
+    cfg.consistency = True
+    show = Showrunner(cfg, workdir=tmp_path)
+    prod = show.run("A clockmaker races to finish a watch before dawn")
+    assert Path(prod.final_path).exists()
+    # Anchor frames are extracted from each shot to seed the next (visual continuity).
+    anchors = list(Path(tmp_path).glob("anchor_*.png"))
+    assert anchors, "expected at least one anchor frame in consistency mode"
+
+
 def test_naive_baseline_runs(tmp_path):
     naive = NaiveShowrunner(_cfg(shots=3), workdir=tmp_path)
     prod = naive.run("A street vendor and the regular who never speaks")

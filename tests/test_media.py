@@ -32,6 +32,14 @@ def test_frame_to_data_uri(tmp_path):
     assert len(uri) > 100
 
 
+def test_extract_last_frame(tmp_path):
+    clip = media.make_placeholder_clip(tmp_path / "test.mp4", index=0, seconds=3)
+    last = media.extract_last_frame(clip)
+    assert Path(last).exists()
+    assert Path(last).stat().st_size > 100
+    assert last.endswith(".png")
+
+
 def test_concat_clips(tmp_path):
     clips = [
         media.make_placeholder_clip(tmp_path / f"c{i}.mp4", index=i, seconds=2)

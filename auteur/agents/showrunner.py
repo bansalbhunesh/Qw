@@ -23,7 +23,7 @@ import traceback
 from dataclasses import asdict
 from pathlib import Path
 
-from .. import log
+from .. import log, media
 from ..budget import BudgetGovernor
 from ..config import ProductionConfig
 from ..events import bus
@@ -76,6 +76,7 @@ class Showrunner:
         # --- phase 3: production (render + critique + voice per shot) ---
         clip_paths: list[str] = []
         audio_paths: list[str | None] = []
+        anchor: str | None = None  # last frame of the previous shot — seeds visual continuity
 
         for shot in prod.script.shots:
             if not self.governor.can_render_clip():
@@ -83,9 +84,16 @@ class Showrunner:
                 break
 
             try:
-                clip, audio = self._produce_shot(prod, shot)
+                clip, audio = self._produce_shot(prod, shot, reference_image=anchor)
                 clip_paths.append(clip)
                 audio_paths.append(audio)
+                if self.cfg.consistency:
+                    try:
+                        anchor = media.extract_last_frame(
+                            clip, self.workdir / f"anchor_{shot.index}.png",
+                        )
+                    except Exception:
+                        _log.warning("could not extract anchor frame from shot %d", shot.index)
             except Exception:
                 _log.error("shot %d failed — skipping:\n%s", shot.index, traceback.format_exc())
                 continue
@@ -118,13 +126,20 @@ class Showrunner:
         )
         return prod
 
-    def _produce_shot(self, prod: Production, shot) -> tuple[str, str | None]:
-        """Render, critique, optionally reshoot, and voice one shot. Returns (clip_path, audio_path)."""
+    def _produce_shot(
+        self, prod: Production, shot, *, reference_image: str | None = None,
+    ) -> tuple[str, str | None]:
+        """Render, critique, optionally reshoot, and voice one shot. Returns (clip_path, audio_path).
+
+        `reference_image` is the previous shot's final frame, used to seed image-to-video for
+        visual continuity. The Cinematographer falls back to text-to-video if i2v fails.
+        """
         prompt = ArtDirector.apply(prod.style, shot.video_prompt)
 
         # --- render ---
         clip = self.dp.render(
             prompt, self.workdir / f"shot_{shot.index}.mp4", index=shot.index,
+            reference_image=reference_image,
         )
 
         # --- critique ---
@@ -143,6 +158,7 @@ class Showrunner:
             )
             clip = self.dp.render(
                 fixed_prompt, self.workdir / f"shot_{shot.index}_retake.mp4", index=shot.index,
+                reference_image=reference_image,
             )
             shot.retaken = True
             retake_review = self.editor.critique(shot, self.editor.sample_frames(clip))

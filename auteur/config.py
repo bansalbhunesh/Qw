@@ -62,6 +62,10 @@ class ProductionConfig:
     target_duration_s: int = 60
     shots: int = 6
     resolution: str = "720P"
+    # Visual continuity: seed each shot from the previous shot's final frame (image-to-video)
+    # so the character and world stay consistent. Falls back to text-to-video automatically
+    # if an i2v render fails, so it never breaks a production.
+    consistency: bool = True
     budget: BudgetConfig = field(default_factory=BudgetConfig)
 
 

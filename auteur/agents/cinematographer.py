@@ -46,8 +46,15 @@ class Cinematographer:
         out_path: str | Path,
         *,
         index: int = 0,
+        reference_image: str | None = None,
         image_url: str | None = None,
     ) -> str:
+        """Render one shot to a local clip.
+
+        If `reference_image` (a local image path) or `image_url` (a public URL) is given,
+        renders image-to-video (visual continuity from the previous shot). If that i2v render
+        fails for any reason, it falls back to plain text-to-video so a production never stalls.
+        """
         if not self.governor.can_render_clip():
             raise RuntimeError("clip budget exhausted")
 
@@ -56,7 +63,27 @@ class Cinematographer:
             self.governor.record_video(STAGE, "mock-wan", clips=1, note=prompt[:80])
             return path
 
-        model = WAN_I2V_MODEL if image_url else WAN_T2V_MODEL
+        seed = image_url
+        if seed is None and reference_image and Path(reference_image).exists():
+            seed = media.frame_to_data_uri(reference_image)
+
+        if seed:
+            try:
+                path = self._render_with(WAN_I2V_MODEL, prompt, out_path, index, seed)
+                self.governor.record_video(STAGE, WAN_I2V_MODEL, clips=1, note=prompt[:80])
+                _log.info("shot %d rendered (i2v, continuity) -> %s", index, path)
+                return path
+            except Exception as exc:  # i2v unsupported / failed — degrade gracefully
+                _log.warning("shot %d i2v failed (%s) — falling back to t2v", index, exc)
+
+        path = self._render_with(WAN_T2V_MODEL, prompt, out_path, index, None)
+        self.governor.record_video(STAGE, WAN_T2V_MODEL, clips=1, note=prompt[:80])
+        _log.info("shot %d rendered (t2v) -> %s", index, path)
+        return path
+
+    def _render_with(
+        self, model: str, prompt: str, out_path: str | Path, index: int, image_url: str | None,
+    ) -> str:
         _log.info("rendering shot %d with %s (%d chars prompt)", index, model, len(prompt))
 
         def _do_render():
@@ -64,10 +91,7 @@ class Cinematographer:
             url = self._poll(task_id)
             return self._download(url, out_path)
 
-        path = with_retry(_do_render, label=f"wan/shot_{index}", max_retries=2, base_delay=5.0)
-        self.governor.record_video(STAGE, model, clips=1, note=prompt[:80])
-        _log.info("shot %d rendered -> %s", index, path)
-        return path
+        return with_retry(_do_render, label=f"wan/shot_{index}", max_retries=2, base_delay=5.0)
 
     # --- DashScope async video API ---------------------------------------------------
 

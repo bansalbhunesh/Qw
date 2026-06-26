@@ -77,6 +77,7 @@ class QwenClient:
     ) -> dict | str:
         """A Qwen-VL call with multimodal content (image_url entries as data URIs or URLs)."""
         model = TIER_MODELS[Tier.VISION]
+        self.governor.assert_can_spend_tokens(_estimate_tokens(messages))
         content, p_tok, c_tok = self._t.complete(
             stage, model, messages, temperature=temperature, max_tokens=None, json_mode=json_mode,
         )
