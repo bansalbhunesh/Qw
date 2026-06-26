@@ -183,7 +183,9 @@ def concat_clips(clip_paths: list[str], out_path: str | Path) -> str:
         raise ValueError("no clips to assemble")
 
     listing = out_path.with_suffix(".concat.txt")
-    listing.write_text("".join(f"file '{Path(p).resolve()}'\n" for p in clip_paths))
+    listing.write_text("".join(
+        f"file '{Path(p).resolve().as_posix()}'\n" for p in clip_paths
+    ))
 
     total_dur = sum(probe_duration(p) for p in clip_paths)
     _log.info("assembling %d clips (%.1fs total) -> %s", len(clip_paths), total_dur, out_path.name)
@@ -212,8 +214,6 @@ def concat_with_crossfade(
 
     durations = [probe_duration(p) for p in clip_paths]
 
-    # Build the xfade filter chain
-    inputs = " ".join(f"-i '{Path(p).resolve()}'" for p in clip_paths)
     n = len(clip_paths)
     offsets = []
     acc = 0.0
@@ -241,24 +241,29 @@ def concat_with_crossfade(
         prev_a = out_a
 
     fcomplex = ";".join(vfilter_parts + afilter_parts)
-    cmd = (
-        f"{inputs} -filter_complex \"{fcomplex}\" "
-        f"-map \"[vout]\" -map \"[aout]\" "
-        f"-c:v libx264 -preset fast -c:a aac -pix_fmt yuv420p "
-        f"-movflags +faststart '{out_path}'"
-    )
+
+    # Build as argument list (not shell string) for cross-platform compatibility
+    cmd: list[str] = [ffmpeg_exe(), "-y"]
+    for p in clip_paths:
+        cmd += ["-i", str(Path(p).resolve())]
+    cmd += [
+        "-filter_complex", fcomplex,
+        "-map", "[vout]", "-map", "[aout]",
+        "-c:v", "libx264", "-preset", "fast",
+        "-c:a", "aac", "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart", str(out_path),
+    ]
 
     try:
-        result = subprocess.run(
-            f"{ffmpeg_exe()} -y {cmd}",
-            shell=True, capture_output=True, timeout=180,
-        )
+        result = subprocess.run(cmd, capture_output=True, timeout=180)
         if result.returncode == 0:
             _log.info("crossfade assembly (%d clips, %.1fs fade) -> %s",
                       len(clip_paths), fade_s, out_path.name)
             return str(out_path)
-    except Exception:
-        pass
+        _log.warning("crossfade ffmpeg rc=%d: %s", result.returncode,
+                     result.stderr.decode("utf-8", errors="replace")[-200:])
+    except Exception as exc:
+        _log.warning("crossfade exception: %s", exc)
 
     _log.warning("crossfade failed, falling back to plain concat")
     return concat_clips(clip_paths, out_path)
