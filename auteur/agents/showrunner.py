@@ -112,15 +112,22 @@ class Showrunner:
             _log.info("cleaned %d stale artifact(s) from %s", removed, self.workdir)
 
     def run(self, premise: str) -> Production:
+        import time as _time
         _log.info("=== PRODUCTION START: %s ===", premise[:60])
         self._log_cost_estimate()
         self._clean_workdir()
         prod = Production(premise=premise)
+        _t0 = _time.time()
+        _timeline: list[dict] = []
+
+        def _mark(phase: str):
+            _timeline.append({"phase": phase, "elapsed_s": round(_time.time() - _t0, 2)})
 
         bus.emit("production_start", "showrunner", premise=premise)
 
         # --- phase 1: writing ---
         prod.script = self.writer.write(premise, self.cfg.shots)
+        _mark("script")
         _log.info("script: %d beats, %d shots", len(prod.script.beats), len(prod.script.shots))
         bus.emit("script_complete", "writer",
                  logline=prod.script.logline,
@@ -130,6 +137,7 @@ class Showrunner:
 
         # --- phase 2: art direction ---
         prod.style = self.art.build_bible(prod.script)
+        _mark("style_bible")
         bus.emit("style_bible_complete", "art_director",
                  look=prod.style.look,
                  characters=[{"name": c.name, "description": c.description[:80]}
@@ -200,6 +208,8 @@ class Showrunner:
                 bus.emit("quality_gate", "showrunner",
                          kept=len(clip_paths), dropped=dropped, threshold=gate)
 
+        _mark("shots_done")
+
         # --- phase 4: assembly ---
         _log.info("assembling %d clips into final cut", len(clip_paths))
         bus.emit("budget_update", "showrunner", **self.governor.summary())
@@ -225,9 +235,11 @@ class Showrunner:
             shutil.copy2(silent_cut, final)
             prod.final_path = str(final)
 
+        _mark("assembly")
+
         # --- phase 5: deliverables ---
         self.governor.flush()
-        self._write_manifest(prod)
+        self._write_manifest(prod, timeline=_timeline)
 
         bus.emit("production_complete", "showrunner",
                  final=prod.final_path, budget=self.governor.summary())
@@ -367,7 +379,7 @@ class Showrunner:
         # Strategy 3: parity fallback
         return chars[shot.index % len(chars)]
 
-    def _write_manifest(self, prod: Production) -> None:
+    def _write_manifest(self, prod: Production, timeline: list[dict] | None = None) -> None:
         """Serialize the full production state as a JSON manifest — script, shots, scores, paths."""
         manifest = {
             "premise": prod.premise,
@@ -382,6 +394,7 @@ class Showrunner:
             "score": self._score_plan or {},
             "budget": self.governor.summary(),
             "report_card": self._report_card(prod),
+            "timeline": timeline or [],
         }
         if prod.script:
             for s in prod.script.shots:
