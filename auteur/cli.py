@@ -28,6 +28,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--resolution", default="720P", choices=["480P", "720P", "1080P"],
                         help="Wan render resolution (default: 720P)")
+    parser.add_argument("--aspect-ratio", default="9:16", choices=["9:16", "16:9", "1:1"],
+                        help="Wan render aspect ratio (default: 9:16)")
     parser.add_argument("--out", default="out", help="output directory")
     parser.add_argument(
         "--no-consistency", action="store_true",
@@ -53,6 +55,7 @@ def main(argv: list[str] | None = None) -> int:
     _log = _logmod.get("cli")
 
     cfg = ProductionConfig(shots=args.shots, resolution=args.resolution,
+                           aspect_ratio=args.aspect_ratio,
                            consistency=not args.no_consistency,
                            quality_gate=args.quality_gate,
                            dynamic_resolution=args.dynamic_resolution)

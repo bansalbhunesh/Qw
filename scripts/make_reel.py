@@ -109,9 +109,9 @@ class Reel:
             inputs += ["-i", str(sc / f"cap{i}.png")]
 
         if self.vertical:
-            base = f"[0:v]scale={W}:-2[s];[s]pad={W}:{H}:0:660:color=0x080810[bg];[bg][1:v]overlay=0:0[v1]"
+            base = f"[0:v]scale={W}:-2[s];[s]pad={W}:{H}:-1:-1:color=0x080810[bg];[bg][1:v]overlay=0:0[v1]"
         else:
-            base = f"[0:v]scale={W}:{H}:force_original_aspect_ratio=decrease[s];" \
+            base = f"[0:v]scale={W}:{H}:force_original_aspect_ratio=decrease,setsar=1[s];" \
                    f"[s]pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=0x080810[bg];[bg][1:v]overlay=0:0[v1]"
         fc, prev = base, "[v1]"
         n = len(captions)
@@ -122,9 +122,9 @@ class Reel:
             out = f"[v{i+2}]" if i < n - 1 else "[vout]"
             fc += f";{prev}[{i+2}:v]overlay=0:0:enable='between(t,{t0:.2f},{t1:.2f})'{out}"
             prev = out
-        self.run(inputs + ["-filter_complex", fc, "-map", "[vout]", "-an", "-pix_fmt",
-                           "yuv420p", "-c:v", "libx264", "-preset", "fast", "-r", "30"],
-                 sc / "f_nv.mp4")
+        args_to_run = inputs + ["-filter_complex", fc, "-map", "[vout]", "-an", "-pix_fmt",
+                           "yuv420p", "-c:v", "libx264", "-preset", "fast", "-r", "30"]
+        self.run(args_to_run, sc / "f_nv.mp4")
         return self.run(["-i", str(sc / "f_nv.mp4"), "-f", "lavfi", "-i",
                          "anullsrc=channel_layout=stereo:sample_rate=44100", "-c:v", "copy",
                          "-c:a", "aac", "-shortest"], sc / "f.mp4")

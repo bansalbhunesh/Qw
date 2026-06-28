@@ -300,7 +300,7 @@ Working today:
 - Demo reel generator: any production → shareable 16:9 or 9:16 sizzle with live scores + score
 - 85 passing tests, naive baseline, benchmark harness
 
-See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design, module map, and roadmap.
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design, module map, and roadmap.
 
 ## License
 
