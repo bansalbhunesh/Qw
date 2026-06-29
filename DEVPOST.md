@@ -37,6 +37,8 @@ The system has two core innovations:
 
 **2. The Qwen-VL Critic Loop** — after each Wan clip renders, Qwen-VL watches it and scores it on four axes: prompt adherence, character consistency, shot quality, and cross-shot visual continuity. A failing take gets one budgeted reshoot with the critic's fix injected. A passing take moves to the cut. The vision model closes the loop on the video model — this is what multimodal orchestration actually means, not just chaining APIs.
 
+**3. Series Mode** — Auteur isn't just a short film generator; it's an episode-native TV showrunner. After generating Episode 1, it permanently locks the Style Bible. For Episode 2, it reads the final narrative beat of Episode 1, writes a seamless continuation, and injects the identical Style Bible. Characters never drift, and the world remains perfectly consistent across a multi-episode run.
+
 The web Studio streams every decision live: script beats being written, Style Bible characters appearing, critic scores ticking in, retake decisions, budget bars depleting — all via Server-Sent Events in real time.
 
 ---
@@ -49,9 +51,9 @@ The web Studio streams every decision live: script beats being written, Style Bi
 - `qwen-max` — script writing, art direction, retake decisions (creative tier)
 - `qwen-flash` — shot-list formatting, prompt cleanup (grunt tier — cheap, fast)
 - `qwen-vl-max` — 4-axis critic scoring of real Wan video frames (vision tier)
-- `wan2.2-t2v-plus` — text-to-video clip generation
-- `wan2.2-i2v-plus` — image-to-video for cross-shot visual continuity
-- `cosyvoice-v3-plus` — character dialogue voicing (17 English voice descriptors)
+- `wan2.7-t2v` — text-to-video clip generation
+- `wan2.7-i2v` — image-to-video for cross-shot visual continuity
+- `cosyvoice-v2` — character dialogue voicing (17 English voice descriptors)
 
 **Backend:** FastAPI with a concurrent-safe multi-tenant SSE event stream (per-production channels via `contextvars`), bounded thread pool for render concurrency, and path-validated production artifact endpoints.
 
@@ -103,4 +105,4 @@ The web Studio streams every decision live: script beats being written, Style Bi
 
 ## Built With
 
-`python` · `qwen-max` · `qwen-flash` · `qwen-vl-max` · `wan2.2-t2v-plus` · `cosyvoice` · `alibaba-cloud` · `dashscope` · `alibaba-oss` · `fastapi` · `ffmpeg` · `uvicorn` · `pillow` · `pytest` · `docker`
+`python` · `qwen-max` · `qwen-flash` · `qwen-vl-max` · `wan2.7-t2v` · `cosyvoice-v2` · `alibaba-cloud` · `dashscope` · `alibaba-oss` · `fastapi` · `ffmpeg` · `uvicorn` · `pillow` · `pytest` · `docker`
