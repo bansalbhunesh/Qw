@@ -4,10 +4,14 @@ __pycache__/
 .venv/
 venv/
 out/
+out_live*/
+series_out/
+New folder/
 productions/
 bench/results/
 *.mp4
 *.wav
+*.zip
 *.png
 *.jpg
 !docs/**/*.png
