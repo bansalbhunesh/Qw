@@ -1,0 +1,356 @@
+{
+  "summary": {
+    "tokens_used": 10086,
+    "token_budget": 120000,
+    "clips_used": 8,
+    "clip_budget": 8,
+    "retakes_used": 2,
+    "retake_budget": 4,
+    "estimated_cost_usd": 0.0,
+    "max_spend_usd": 2.0,
+    "tokens_by_stage": {
+      "writer": 1694,
+      "art_director": 614,
+      "prompt_optimizer": 3231,
+      "critic": 4368,
+      "composer": 179
+    },
+    "tokens_by_tier": {
+      "creative": 2308,
+      "grunt": 3410,
+      "vision": 4368
+    }
+  },
+  "entries": [
+    {
+      "ts": 1782734884.6415443,
+      "stage": "writer",
+      "kind": "llm",
+      "model": "qwen3-max",
+      "tier": "creative",
+      "prompt_tokens": 551,
+      "completion_tokens": 205,
+      "clips": 0,
+      "note": ""
+    },
+    {
+      "ts": 1782734884.6429589,
+      "stage": "writer",
+      "kind": "llm",
+      "model": "qwen3-max",
+      "tier": "creative",
+      "prompt_tokens": 513,
+      "completion_tokens": 425,
+      "clips": 0,
+      "note": ""
+    },
+    {
+      "ts": 1782734884.6439097,
+      "stage": "art_director",
+      "kind": "llm",
+      "model": "qwen3-max",
+      "tier": "creative",
+      "prompt_tokens": 478,
+      "completion_tokens": 136,
+      "clips": 0,
+      "note": ""
+    },
+    {
+      "ts": 1782734884.6442413,
+      "stage": "prompt_optimizer",
+      "kind": "llm",
+      "model": "qwen3-flash",
+      "tier": "grunt",
+      "prompt_tokens": 485,
+      "completion_tokens": 53,
+      "clips": 0,
+      "note": ""
+    },
+    {
+      "ts": 1782734889.356507,
+      "stage": "cinematographer",
+      "kind": "video",
+      "model": "mock-wan",
+      "tier": null,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "clips": 1,
+      "note": "A single figure in soft rim-lit warmth, Rewrite this prompt for maximum Wan rend"
+    },
+    {
+      "ts": 1782734893.102106,
+      "stage": "critic",
+      "kind": "llm",
+      "model": "qwen-vl-max",
+      "tier": "vision",
+      "prompt_tokens": 443,
+      "completion_tokens": 45,
+      "clips": 0,
+      "note": ""
+    },
+    {
+      "ts": 1782734894.8119068,
+      "stage": "cinematographer",
+      "kind": "video",
+      "model": "mock-wan",
+      "tier": null,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "clips": 1,
+      "note": "A single figure in soft rim-lit warmth, Rewrite this prompt for maximum Wan rend"
+    },
+    {
+      "ts": 1782734896.4806857,
+      "stage": "critic",
+      "kind": "llm",
+      "model": "qwen-vl-max",
+      "tier": "vision",
+      "prompt_tokens": 443,
+      "completion_tokens": 32,
+      "clips": 0,
+      "note": ""
+    },
+    {
+      "ts": 1782734896.7160726,
+      "stage": "sound",
+      "kind": "tts",
+      "model": "mock-tts",
+      "tier": null,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "clips": 0,
+      "note": "I never thought you'd come back."
+    },
+    {
+      "ts": 1782734897.8571503,
+      "stage": "prompt_optimizer",
+      "kind": "llm",
+      "model": "qwen3-flash",
+      "tier": "grunt",
+      "prompt_tokens": 486,
+      "completion_tokens": 53,
+      "clips": 0,
+      "note": ""
+    },
+    {
+      "ts": 1782734900.0088809,
+      "stage": "cinematographer",
+      "kind": "video",
+      "model": "mock-wan",
+      "tier": null,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "clips": 1,
+      "note": "A single figure in soft rim-lit warmth, Rewrite this prompt for maximum Wan rend"
+    },
+    {
+      "ts": 1782734902.982881,
+      "stage": "critic",
+      "kind": "llm",
+      "model": "qwen-vl-max",
+      "tier": "vision",
+      "prompt_tokens": 529,
+      "completion_tokens": 45,
+      "clips": 0,
+      "note": ""
+    },
+    {
+      "ts": 1782734905.24587,
+      "stage": "cinematographer",
+      "kind": "video",
+      "model": "mock-wan",
+      "tier": null,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "clips": 1,
+      "note": "A single figure in soft rim-lit warmth, Rewrite this prompt for maximum Wan rend"
+    },
+    {
+      "ts": 1782734906.725177,
+      "stage": "critic",
+      "kind": "llm",
+      "model": "qwen-vl-max",
+      "tier": "vision",
+      "prompt_tokens": 529,
+      "completion_tokens": 45,
+      "clips": 0,
+      "note": ""
+    },
+    {
+      "ts": 1782734907.910787,
+      "stage": "prompt_optimizer",
+      "kind": "llm",
+      "model": "qwen3-flash",
+      "tier": "grunt",
+      "prompt_tokens": 485,
+      "completion_tokens": 53,
+      "clips": 0,
+      "note": ""
+    },
+    {
+      "ts": 1782734910.3138127,
+      "stage": "cinematographer",
+      "kind": "video",
+      "model": "mock-wan",
+      "tier": null,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "clips": 1,
+      "note": "A single figure in soft rim-lit warmth, Rewrite this prompt for maximum Wan rend"
+    },
+    {
+      "ts": 1782734911.8455877,
+      "stage": "critic",
+      "kind": "llm",
+      "model": "qwen-vl-max",
+      "tier": "vision",
+      "prompt_tokens": 529,
+      "completion_tokens": 32,
+      "clips": 0,
+      "note": ""
+    },
+    {
+      "ts": 1782734911.9968054,
+      "stage": "sound",
+      "kind": "tts",
+      "model": "mock-tts",
+      "tier": null,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "clips": 0,
+      "note": "It was always here, wasn't it?"
+    },
+    {
+      "ts": 1782734912.8332186,
+      "stage": "prompt_optimizer",
+      "kind": "llm",
+      "model": "qwen3-flash",
+      "tier": "grunt",
+      "prompt_tokens": 486,
+      "completion_tokens": 53,
+      "clips": 0,
+      "note": ""
+    },
+    {
+      "ts": 1782734914.8232164,
+      "stage": "cinematographer",
+      "kind": "video",
+      "model": "mock-wan",
+      "tier": null,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "clips": 1,
+      "note": "A single figure in soft rim-lit warmth, Rewrite this prompt for maximum Wan rend"
+    },
+    {
+      "ts": 1782734916.8481605,
+      "stage": "critic",
+      "kind": "llm",
+      "model": "qwen-vl-max",
+      "tier": "vision",
+      "prompt_tokens": 529,
+      "completion_tokens": 45,
+      "clips": 0,
+      "note": ""
+    },
+    {
+      "ts": 1782734917.8261206,
+      "stage": "prompt_optimizer",
+      "kind": "llm",
+      "model": "qwen3-flash",
+      "tier": "grunt",
+      "prompt_tokens": 486,
+      "completion_tokens": 53,
+      "clips": 0,
+      "note": ""
+    },
+    {
+      "ts": 1782734920.0979788,
+      "stage": "cinematographer",
+      "kind": "video",
+      "model": "mock-wan",
+      "tier": null,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "clips": 1,
+      "note": "A single figure in soft rim-lit warmth, Rewrite this prompt for maximum Wan rend"
+    },
+    {
+      "ts": 1782734921.6172078,
+      "stage": "critic",
+      "kind": "llm",
+      "model": "qwen-vl-max",
+      "tier": "vision",
+      "prompt_tokens": 529,
+      "completion_tokens": 32,
+      "clips": 0,
+      "note": ""
+    },
+    {
+      "ts": 1782734921.9539351,
+      "stage": "sound",
+      "kind": "tts",
+      "model": "mock-tts",
+      "tier": null,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "clips": 0,
+      "note": "You know I can't stay."
+    },
+    {
+      "ts": 1782734923.0223336,
+      "stage": "prompt_optimizer",
+      "kind": "llm",
+      "model": "qwen3-flash",
+      "tier": "grunt",
+      "prompt_tokens": 485,
+      "completion_tokens": 53,
+      "clips": 0,
+      "note": ""
+    },
+    {
+      "ts": 1782734924.6781046,
+      "stage": "cinematographer",
+      "kind": "video",
+      "model": "mock-wan",
+      "tier": null,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "clips": 1,
+      "note": "A single figure in soft rim-lit warmth, Rewrite this prompt for maximum Wan rend"
+    },
+    {
+      "ts": 1782734925.7532783,
+      "stage": "critic",
+      "kind": "llm",
+      "model": "qwen-vl-max",
+      "tier": "vision",
+      "prompt_tokens": 529,
+      "completion_tokens": 32,
+      "clips": 0,
+      "note": ""
+    },
+    {
+      "ts": 1782734925.9472332,
+      "stage": "sound",
+      "kind": "tts",
+      "model": "mock-tts",
+      "tier": null,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "clips": 0,
+      "note": "Then don't. But remember this."
+    },
+    {
+      "ts": 1782734942.2943442,
+      "stage": "composer",
+      "kind": "llm",
+      "model": "qwen3-flash",
+      "tier": "grunt",
+      "prompt_tokens": 120,
+      "completion_tokens": 59,
+      "clips": 0,
+      "note": ""
+    }
+  ]
+}

@@ -8,15 +8,24 @@ happens — this is what the 3-minute demo video captures.
 
 from __future__ import annotations
 
+import asyncio
+import concurrent.futures
 import json
 import os
-import threading
+import re
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel
+
+# Global producer thread pool to bound concurrency
+producer_pool = concurrent.futures.ThreadPoolExecutor(max_workers=3)
+
+def validate_prod_id(prod_id: str):
+    if not re.match(r'^[a-f0-9]{12}$', prod_id):
+        raise HTTPException(400, "Invalid production ID")
 
 from .agents.showrunner import Showrunner
 from .config import ProductionConfig
@@ -50,9 +59,7 @@ def build_viewer_app() -> FastAPI:
     def gallery_page():
         return _GALLERY_HTML
 
-    @app.get("/api/metrics")
-    def metrics():
-        """Aggregate stats across every production on disk — the showcase headline."""
+    def _compute_metrics():
         prods_dir = Path("productions")
         total = scored = 0
         sum_score = sum_tokens = sum_clips = 0
@@ -81,12 +88,19 @@ def build_viewer_app() -> FastAPI:
             "avg_tokens_per_film": round(sum_tokens / total) if total else 0,
         }
 
+    @app.get("/api/metrics")
+    async def metrics():
+        """Aggregate stats across every production on disk — the showcase headline."""
+        return await asyncio.to_thread(_compute_metrics)
+
     @app.post("/api/produce")
     def produce(req: ProduceReq):
         prod_id = uuid.uuid4().hex[:12]
         workdir = Path("productions") / prod_id
 
-        def _run():
+        def _run(pid):
+            from .events import active_production
+            active_production.set(pid)
             cfg = ProductionConfig(
                 shots=req.shots,
                 quality_gate=req.quality_gate,
@@ -97,60 +111,62 @@ def build_viewer_app() -> FastAPI:
             try:
                 show.run(req.premise)
             finally:
-                bus.close()
+                bus.close(pid)
 
-        threading.Thread(target=_run, daemon=True).start()
+        producer_pool.submit(_run, prod_id)
         return {"id": prod_id}
 
     @app.get("/api/events")
-    def events():
-        q = bus.subscribe()
+    def events(prod_id: str):
+        validate_prod_id(prod_id)
+        q = bus.subscribe(prod_id)
 
         def generate():
-            while True:
-                ev = q.get()
-                if ev is None:
-                    yield "data: {\"kind\": \"done\"}\n\n"
-                    break
-                yield ev.to_sse()
-            bus.unsubscribe(q)
+            try:
+                while True:
+                    ev = q.get()
+                    if ev is None:
+                        yield "data: {\"kind\": \"done\"}\n\n"
+                        break
+                    yield ev.to_sse()
+            finally:
+                bus.unsubscribe(prod_id, q)
 
         return StreamingResponse(generate(), media_type="text/event-stream")
 
     @app.get("/productions/{prod_id}/final.mp4")
     def get_final(prod_id: str):
+        validate_prod_id(prod_id)
         path = Path("productions") / prod_id / "final.mp4"
         if not path.exists():
-            from fastapi import HTTPException
             raise HTTPException(404)
         return FileResponse(path, media_type="video/mp4")
 
     @app.get("/productions/{prod_id}/manifest.json")
     def get_manifest(prod_id: str):
+        validate_prod_id(prod_id)
         path = Path("productions") / prod_id / "manifest.json"
         if not path.exists():
-            from fastapi import HTTPException
             raise HTTPException(404)
         return json.loads(path.read_text())
 
     @app.get("/productions/{prod_id}/ledger.json")
     def get_ledger(prod_id: str):
+        validate_prod_id(prod_id)
         path = Path("productions") / prod_id / "ledger.json"
         if not path.exists():
-            from fastapi import HTTPException
             raise HTTPException(404)
         return json.loads(path.read_text())
 
     @app.get("/productions/{prod_id}/storyboard.html", response_class=HTMLResponse)
     def get_storyboard(prod_id: str):
+        validate_prod_id(prod_id)
         path = Path("productions") / prod_id / "storyboard.html"
         if not path.exists():
-            from fastapi import HTTPException
             raise HTTPException(404, "storyboard not generated yet")
         return HTMLResponse(path.read_text())
 
-    @app.get("/api/gallery")
-    def gallery():
+    def _compute_gallery():
         prods_dir = Path("productions")
         if not prods_dir.exists():
             return []
@@ -176,6 +192,10 @@ def build_viewer_app() -> FastAPI:
             except Exception:
                 continue
         return entries
+
+    @app.get("/api/gallery")
+    async def gallery():
+        return await asyncio.to_thread(_compute_gallery)
 
     return app
 
@@ -418,7 +438,7 @@ function start(){
 }
 
 function listen(){
-  evtSource=new EventSource('/api/events');
+  evtSource=new EventSource('/api/events?prod_id=' + window._prodId);
   evtSource.onmessage=e=>{
     const ev=JSON.parse(e.data);
     if(ev.kind==='done'){

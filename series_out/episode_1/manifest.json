@@ -1,0 +1,275 @@
+{
+  "premise": "A detective learns her informant is her husband",
+  "logline": "A quiet moment cracks open a hidden truth.",
+  "final": "series_out\\episode_1\\final.mp4",
+  "beats": [
+    {
+      "index": 0,
+      "label": "Hook",
+      "summary": "Beat 1: a turn in the story that raises the stakes.",
+      "importance": 1.0,
+      "tone": "tense"
+    },
+    {
+      "index": 1,
+      "label": "Setup",
+      "summary": "Beat 2: a turn in the story that raises the stakes.",
+      "importance": 0.82,
+      "tone": "melancholy"
+    },
+    {
+      "index": 2,
+      "label": "Turn",
+      "summary": "Beat 3: a turn in the story that raises the stakes.",
+      "importance": 0.73,
+      "tone": "urgent"
+    },
+    {
+      "index": 3,
+      "label": "Crisis",
+      "summary": "Beat 4: a turn in the story that raises the stakes.",
+      "importance": 0.65,
+      "tone": "bittersweet"
+    },
+    {
+      "index": 4,
+      "label": "Button",
+      "summary": "Beat 5: a turn in the story that raises the stakes.",
+      "importance": 0.57,
+      "tone": "cathartic"
+    },
+    {
+      "index": 5,
+      "label": "Tag",
+      "summary": "Beat 6: a turn in the story that raises the stakes.",
+      "importance": 0.48,
+      "tone": "tender"
+    }
+  ],
+  "shots": [
+    {
+      "index": 0,
+      "beat": 0,
+      "description": "Shot 1: medium close-up, slow push-in, soft practical light.",
+      "dialogue": "I never thought you'd come back.",
+      "critic_score": 7.6,
+      "retaken": true,
+      "clip": "series_out\\episode_1\\shot_0_retake.mp4",
+      "importance": 1.0
+    },
+    {
+      "index": 1,
+      "beat": 1,
+      "description": "Shot 2: medium close-up, slow push-in, soft practical light.",
+      "dialogue": "",
+      "critic_score": 6.0,
+      "retaken": true,
+      "clip": "series_out\\episode_1\\shot_1_retake.mp4",
+      "importance": 0.82
+    },
+    {
+      "index": 2,
+      "beat": 2,
+      "description": "Shot 3: medium close-up, slow push-in, soft practical light.",
+      "dialogue": "It was always here, wasn't it?",
+      "critic_score": 9.8,
+      "retaken": false,
+      "clip": "series_out\\episode_1\\shot_2.mp4",
+      "importance": 0.73
+    },
+    {
+      "index": 3,
+      "beat": 3,
+      "description": "Shot 4: medium close-up, slow push-in, soft practical light.",
+      "dialogue": "",
+      "critic_score": 6.1,
+      "retaken": false,
+      "clip": "series_out\\episode_1\\shot_3.mp4",
+      "importance": 0.65
+    },
+    {
+      "index": 4,
+      "beat": 4,
+      "description": "Shot 5: medium close-up, slow push-in, soft practical light.",
+      "dialogue": "You know I can't stay.",
+      "critic_score": 9.0,
+      "retaken": false,
+      "clip": "series_out\\episode_1\\shot_4.mp4",
+      "importance": 0.57
+    },
+    {
+      "index": 5,
+      "beat": 5,
+      "description": "Shot 6: medium close-up, slow push-in, soft practical light.",
+      "dialogue": "Then don't. But remember this.",
+      "critic_score": 7.3,
+      "retaken": false,
+      "clip": "series_out\\episode_1\\shot_5.mp4",
+      "importance": 0.48
+    }
+  ],
+  "style": {
+    "look": "muted teal grade, 35mm anamorphic, shallow depth of field, soft practical lighting, warm amber highlights, cool shadow tones",
+    "characters": [
+      {
+        "name": "Mara",
+        "description": "late 30s, short dark hair parted left, deep brown eyes, navy scrubs with ID badge, tired but kind expression, olive skin",
+        "voice": "warm"
+      },
+      {
+        "name": "Elias",
+        "description": "mid 60s, silver close-cropped hair, reading glasses on a cord, grey cardigan over white shirt, weathered hands",
+        "voice": "gravelly"
+      }
+    ]
+  },
+  "score": {
+    "mood": "cathartic",
+    "intensity": 0.9
+  },
+  "budget": {
+    "tokens_used": 10086,
+    "token_budget": 120000,
+    "clips_used": 8,
+    "clip_budget": 8,
+    "retakes_used": 2,
+    "retake_budget": 4,
+    "estimated_cost_usd": 0.0,
+    "max_spend_usd": 2.0,
+    "tokens_by_stage": {
+      "writer": 1694,
+      "art_director": 614,
+      "prompt_optimizer": 3231,
+      "critic": 4368,
+      "composer": 179
+    },
+    "tokens_by_tier": {
+      "creative": 2308,
+      "grunt": 3410,
+      "vision": 4368
+    }
+  },
+  "report_card": {
+    "shots_planned": 6,
+    "shots_rendered": 6,
+    "shots_retaken": 2,
+    "avg_critic_score": 7.63,
+    "min_critic_score": 6.0,
+    "max_critic_score": 9.8,
+    "quality_arc": [
+      {
+        "shot": 0,
+        "score": 7.6,
+        "importance": 1.0,
+        "retaken": true
+      },
+      {
+        "shot": 1,
+        "score": 6.0,
+        "importance": 0.82,
+        "retaken": true
+      },
+      {
+        "shot": 2,
+        "score": 9.8,
+        "importance": 0.73,
+        "retaken": false
+      },
+      {
+        "shot": 3,
+        "score": 6.1,
+        "importance": 0.65,
+        "retaken": false
+      },
+      {
+        "shot": 4,
+        "score": 9.0,
+        "importance": 0.57,
+        "retaken": false
+      },
+      {
+        "shot": 5,
+        "score": 7.3,
+        "importance": 0.48,
+        "retaken": false
+      }
+    ],
+    "budget_utilization_pct": 8.4,
+    "clip_utilization_pct": 100.0,
+    "estimated_cost_usd": 0.0,
+    "efficiency": {
+      "actual_tokens": 10086,
+      "naive_estimate_tokens": 16906,
+      "tokens_saved_by_routing": 6820,
+      "routing_savings_pct": 40.3
+    }
+  },
+  "decisions": [
+    {
+      "shot": 0,
+      "type": "retake_decision",
+      "score": 5.3,
+      "importance": 1.0,
+      "retake": true,
+      "reason": "score 5.3 < 7.0 threshold, importance 1.0 passes adaptive bar"
+    },
+    {
+      "shot": 1,
+      "type": "retake_decision",
+      "score": 6.3,
+      "importance": 0.82,
+      "retake": true,
+      "reason": "score 6.3 < 7.0 threshold, importance 0.8 passes adaptive bar"
+    },
+    {
+      "shot": 2,
+      "type": "retake_decision",
+      "score": 9.8,
+      "importance": 0.73,
+      "retake": false,
+      "reason": "score 9.8 >= 7.0 threshold (pass)"
+    },
+    {
+      "shot": 3,
+      "type": "retake_decision",
+      "score": 6.1,
+      "importance": 0.65,
+      "retake": false,
+      "reason": "importance 0.7 below adaptive bar (budget-aware skip)"
+    },
+    {
+      "shot": 4,
+      "type": "retake_decision",
+      "score": 9.0,
+      "importance": 0.57,
+      "retake": false,
+      "reason": "score 9.0 >= 7.0 threshold (pass)"
+    },
+    {
+      "shot": 5,
+      "type": "retake_decision",
+      "score": 7.3,
+      "importance": 0.48,
+      "retake": false,
+      "reason": "score 7.3 >= 7.0 threshold (pass)"
+    }
+  ],
+  "timeline": [
+    {
+      "phase": "script",
+      "elapsed_s": 0.0
+    },
+    {
+      "phase": "style_bible",
+      "elapsed_s": 0.0
+    },
+    {
+      "phase": "shots_done",
+      "elapsed_s": 42.7
+    },
+    {
+      "phase": "assembly",
+      "elapsed_s": 59.91
+    }
+  ]
+}

@@ -1,0 +1,153 @@
+{
+  "premise": "A lighthouse keeper teaches the drone sent to replace him",
+  "logline": "A lighthouse keeper, facing obsolescence, must teach the drone sent to replace him, but struggles with the weight of his own legacy.",
+  "final": null,
+  "beats": [
+    {
+      "index": 0,
+      "label": "Hook",
+      "summary": "The lighthouse keeper, OLD HENRY, stands at the edge of the cliff, looking out at the sea, as a DRONE hovers beside him, its camera lens focusing on his face. The drone's mechanical whirring fills the air.",
+      "importance": 0.95,
+      "tone": "tense"
+    },
+    {
+      "index": 1,
+      "label": "Setup",
+      "summary": "Old Henry turns to the drone, his expression a mix of resignation and defiance. 'You need to know when the fog rolls in, not just see it,' he says, his voice gravelly but firm.",
+      "importance": 0.8,
+      "tone": "melancholy"
+    },
+    {
+      "index": 2,
+      "label": "Escalation",
+      "summary": "The drone moves closer, almost as if it's trying to read his emotions. Old Henry sighs, pointing to the horizon. 'See that? That\u2019s the sign. Now, you got to feel it, understand?' His hand trembles slightly.",
+      "importance": 0.75,
+      "tone": "urgent"
+    },
+    {
+      "index": 3,
+      "label": "Turn",
+      "summary": "The drone emits a soft, synthesized sound, almost like a nod. Old Henry's eyes well up, but he blinks back the tears. 'Good. Now, go on, do your job. Don\u2019t let me down.'",
+      "importance": 0.85,
+      "tone": "bittersweet"
+    },
+    {
+      "index": 4,
+      "label": "Button",
+      "summary": "The drone slowly ascends, leaving Old Henry alone on the cliff. He watches it for a moment, then turns back to the lighthouse, a small, proud smile on his weathered face. The lighthouse beam sweeps across the sky, casting a warm glow over him.",
+      "importance": 0.9,
+      "tone": "hopeful"
+    }
+  ],
+  "shots": [
+    {
+      "index": 0,
+      "beat": 0,
+      "description": "A wide shot (WS) of a weathered, 65-year-old man with a rugged, tanned face, short gray hair, and a thick beard. He wears a dark blue, heavy woolen sweater and a pair of worn-out, brown leather boots. The man stands at the edge of a cliff, looking out at the sea. A sleek, black drone hovers beside him, its camera lens focusing on his face. The scene is set during golden hour, with the sun setting behind them, casting a warm, golden light over the landscape.",
+      "dialogue": "",
+      "critic_score": null,
+      "retaken": false,
+      "clip": null,
+      "importance": 0.95
+    },
+    {
+      "index": 1,
+      "beat": 1,
+      "description": "A medium close-up (MCU) of the man's face, showing his expression of resignation and defiance. The drone is visible in the background, hovering steadily. The man turns to the drone, speaking firmly. The lighting is soft, with a slight rim light from the setting sun, emphasizing his features.",
+      "dialogue": "'You need to know when the fog rolls in, not just see it.'",
+      "critic_score": null,
+      "retaken": false,
+      "clip": null,
+      "importance": 0.8
+    },
+    {
+      "index": 2,
+      "beat": 2,
+      "description": "A medium shot (MS) as the drone moves closer to the man, almost as if it's trying to read his emotions. The man sighs, pointing to the horizon with a trembling hand. The lighting is natural, with the setting sun casting a warm glow, highlighting the tension in the scene.",
+      "dialogue": "'See that? That\u2019s the sign. Now, you got to feel it, understand?'",
+      "critic_score": null,
+      "retaken": false,
+      "clip": null,
+      "importance": 0.75
+    },
+    {
+      "index": 3,
+      "beat": 3,
+      "description": "A close-up (CU) of the man's face as the drone emits a soft, synthesized sound, almost like a nod. The man's eyes well up, but he blinks back the tears. The lighting is soft, with a slight rim light, emphasizing his emotional state.",
+      "dialogue": "'Good. Now, go on, do your job. Don\u2019t let me down.'",
+      "critic_score": null,
+      "retaken": false,
+      "clip": null,
+      "importance": 0.85
+    },
+    {
+      "index": 4,
+      "beat": 4,
+      "description": "A wide shot (WS) as the drone slowly ascends, leaving the man alone on the cliff. The man watches it for a moment, then turns back to the lighthouse, a small, proud smile on his weathered face. The lighthouse beam sweeps across the sky, casting a warm glow over him. The lighting is natural, with the setting sun and the lighthouse beam creating a dramatic, yet peaceful mood.",
+      "dialogue": "",
+      "critic_score": null,
+      "retaken": false,
+      "clip": null,
+      "importance": 0.9
+    }
+  ],
+  "style": {
+    "look": "warm golden-amber grade, 35mm anamorphic, shallow depth of field, soft natural lighting, warm amber highlights, cool shadow tones, horizontal 2.39:1",
+    "characters": [
+      {
+        "name": "Lighthouse Keeper",
+        "description": "A 65-year-old man with a rugged, tanned face, short gray hair that is slightly wavy and neatly trimmed, and a thick, well-groomed beard. He has deep-set, expressive blue eyes and a weathered, lined face that tells stories of years at sea. His build is sturdy and lean, standing at about 5'10\", giving the impression of strength and resilience. He wears a dark blue, heavy woolen sweater with a ribbed texture, and a pair of worn-out, brown leather boots that show signs of long use. His hands are rough and calloused, with visible veins and age spots. He carries a small, silver pocket watch on a chain attached to his belt loop, a family heirloom.",
+        "voice": "gravelly"
+      }
+    ]
+  },
+  "score": {},
+  "budget": {
+    "tokens_used": 5224,
+    "token_budget": 120000,
+    "clips_used": 0,
+    "clip_budget": 8,
+    "retakes_used": 0,
+    "retake_budget": 4,
+    "estimated_cost_usd": 0.0,
+    "max_spend_usd": 2.0,
+    "tokens_by_stage": {
+      "writer": 3156,
+      "art_director": 1026,
+      "prompt_optimizer": 1042
+    },
+    "tokens_by_tier": {
+      "creative": 4182,
+      "grunt": 1042
+    }
+  },
+  "report_card": {
+    "shots_planned": 5,
+    "shots_rendered": 0,
+    "shots_retaken": 0,
+    "avg_critic_score": 0.0,
+    "min_critic_score": 0.0,
+    "max_critic_score": 0.0,
+    "quality_arc": [],
+    "budget_utilization_pct": 4.4,
+    "clip_utilization_pct": 0.0,
+    "estimated_cost_usd": 0.0,
+    "efficiency": {
+      "actual_tokens": 5224,
+      "naive_estimate_tokens": 7308,
+      "tokens_saved_by_routing": 2084,
+      "routing_savings_pct": 28.5
+    }
+  },
+  "decisions": [],
+  "timeline": [
+    {
+      "phase": "script",
+      "elapsed_s": 35.05
+    },
+    {
+      "phase": "style_bible",
+      "elapsed_s": 39.6
+    }
+  ]
+}

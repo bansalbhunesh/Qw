@@ -7,12 +7,14 @@ events are simply discarded, so the pipeline has zero overhead.
 
 from __future__ import annotations
 
+import contextvars
 import json
 import queue
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+active_production = contextvars.ContextVar("active_production", default=None)
 
 @dataclass
 class Event:
@@ -30,26 +32,32 @@ class EventBus:
     """Thread-safe pub-sub for production events."""
 
     def __init__(self):
-        self._subscribers: list[queue.Queue[Event | None]] = []
+        self._subscribers: dict[str, list[queue.Queue[Event | None]]] = {}
 
-    def subscribe(self) -> queue.Queue[Event | None]:
+    def subscribe(self, prod_id: str) -> queue.Queue[Event | None]:
         q: queue.Queue[Event | None] = queue.Queue(maxsize=256)
-        self._subscribers.append(q)
+        self._subscribers.setdefault(prod_id, []).append(q)
         return q
 
-    def unsubscribe(self, q: queue.Queue) -> None:
-        self._subscribers = [s for s in self._subscribers if s is not q]
+    def unsubscribe(self, prod_id: str, q: queue.Queue) -> None:
+        if prod_id in self._subscribers:
+            self._subscribers[prod_id] = [s for s in self._subscribers[prod_id] if s is not q]
+            if not self._subscribers[prod_id]:
+                del self._subscribers[prod_id]
 
     def emit(self, kind: str, stage: str, **data) -> None:
+        prod_id = active_production.get()
         ev = Event(kind=kind, stage=stage, data=data)
-        for q in self._subscribers:
+        subs = self._subscribers.get(prod_id, []) if prod_id else []
+        for q in subs:
             try:
                 q.put_nowait(ev)
             except queue.Full:
                 pass  # slow consumer — drop the event
 
-    def close(self) -> None:
-        for q in self._subscribers:
+    def close(self, prod_id: str) -> None:
+        subs = self._subscribers.pop(prod_id, [])
+        for q in subs:
             try:
                 q.put_nowait(None)
             except queue.Full:

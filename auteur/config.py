@@ -37,17 +37,19 @@ class Tier(str, Enum):
 
 
 TIER_MODELS: dict[Tier, str] = {
-    Tier.GRUNT: os.getenv("AUTEUR_MODEL_GRUNT", "qwen-flash"),
-    Tier.CREATIVE: os.getenv("AUTEUR_MODEL_CREATIVE", "qwen-max"),
+    # qwen3-flash / qwen3-max are the latest generation (June 2026). The env-var overrides
+    # let you pin to older models if your DashScope account lacks access.
+    Tier.GRUNT: os.getenv("AUTEUR_MODEL_GRUNT", "qwen3-flash"),
+    Tier.CREATIVE: os.getenv("AUTEUR_MODEL_CREATIVE", "qwen3-max"),
     Tier.VISION: os.getenv("AUTEUR_MODEL_VISION", "qwen-vl-max"),
 }
 
-# wan2.2-*-plus is the production-stable Wan family that's available on the DashScope
-# International free tier. wan2.7-* exists but its free quota is paywalled ("FreeTierOnly"
-# 403); switch to it via AUTEUR_MODEL_WAN_T2V once paid billing is enabled.
-WAN_T2V_MODEL = os.getenv("AUTEUR_MODEL_WAN_T2V", "wan2.2-t2v-plus")
-WAN_I2V_MODEL = os.getenv("AUTEUR_MODEL_WAN_I2V", "wan2.2-i2v-plus")
-TTS_MODEL = os.getenv("AUTEUR_MODEL_TTS", "cosyvoice-v3-plus")
+# Wan 2.7 is the latest stable video generation model on DashScope International.
+# wan2.2-*-plus is kept as a fallback if your account only has the free tier.
+# Switch via AUTEUR_MODEL_WAN_T2V env var.
+WAN_T2V_MODEL = os.getenv("AUTEUR_MODEL_WAN_T2V", "wan2.7-t2v")
+WAN_I2V_MODEL = os.getenv("AUTEUR_MODEL_WAN_I2V", "wan2.7-i2v")
+TTS_MODEL = os.getenv("AUTEUR_MODEL_TTS", "cosyvoice-v2")
 
 
 # --- Wan video cost model (for the real-money guardrail) ----------------------------------

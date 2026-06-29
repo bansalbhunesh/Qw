@@ -1,0 +1,216 @@
+{
+  "premise": "A lighthouse keeper teaches the drone sent to replace him",
+  "logline": "A lighthouse keeper, facing obsolescence, must teach the drone sent to replace him, grappling with his own relevance and the inevitability of change.",
+  "final": "out_live\\final.mp4",
+  "beats": [
+    {
+      "index": 0,
+      "label": "Hook",
+      "summary": "The lighthouse keeper, grizzled and weathered, stands atop the lighthouse, adjusting the lens, as a sleek, humming drone hovers into frame, its camera focusing on him. The keeper glances at the drone, a mix of defiance and resignation in his eyes.",
+      "importance": 0.9,
+      "tone": "tense"
+    },
+    {
+      "index": 1,
+      "label": "Setup",
+      "summary": "Inside the lighthouse, the keeper shows the drone a detailed map of the coastline, pointing out hazards. 'This is where the ships need us the most,' he says, his voice steady but tinged with nostalgia.",
+      "importance": 0.7,
+      "tone": "melancholy"
+    },
+    {
+      "index": 2,
+      "label": "Escalation",
+      "summary": "The keeper and the drone are outside, the stormy night sky above. The keeper points to the horizon, 'See that? That\u2019s why we\u2019re here. You can\u2019t just follow a program. You have to feel it.' The drone's lights flicker, as if in confusion or agreement.",
+      "importance": 0.6,
+      "tone": "urgent"
+    },
+    {
+      "index": 3,
+      "label": "Turn",
+      "summary": "Back inside, the keeper is alone, sitting by an old radio, looking at a photo of a shipwreck. The drone hovers in, projecting a map and a new set of instructions. The keeper sighs, 'I guess it\u2019s time to let go.'",
+      "importance": 0.5,
+      "tone": "bittersweet"
+    },
+    {
+      "index": 4,
+      "label": "Button",
+      "summary": "The keeper steps outside, the lighthouse beam now operated by the drone. He looks out at the sea, a small smile on his face. The drone hovers beside him, its light blinking in a rhythm that seems almost like a thank you. The keeper nods, 'You\u2019ll do fine, kid.'",
+      "importance": 0.8,
+      "tone": "hopeful"
+    }
+  ],
+  "shots": [
+    {
+      "index": 0,
+      "beat": 0,
+      "description": "A weathered, 60-year-old lighthouse keeper with a rugged, sun-weathered face, short gray hair, and a thick beard, wearing a navy blue peacoat and a wool cap, stands atop the lighthouse. He is adjusting the massive, antique lens of the lighthouse. A sleek, black and silver drone, about the size of a small car, hovers into frame, its camera focusing on him. The keeper glances at the drone, a mix of defiance and resignation in his eyes.",
+      "dialogue": "",
+      "critic_score": null,
+      "retaken": false,
+      "clip": null,
+      "importance": 0.9
+    },
+    {
+      "index": 1,
+      "beat": 1,
+      "description": "Inside the lighthouse, the keeper stands by a large, wooden table covered with a detailed map of the coastline. He points out various hazards on the map to the hovering drone. The room is dimly lit by the warm, flickering light of an old lamp. The keeper's voice is steady but tinged with nostalgia as he speaks.",
+      "dialogue": "\"This is where the ships need us the most.\"",
+      "critic_score": 8.0,
+      "retaken": false,
+      "clip": "out_live\\shot_1.mp4",
+      "importance": 0.7
+    },
+    {
+      "index": 2,
+      "beat": 2,
+      "description": "Outside the lighthouse, the keeper and the drone are standing in the stormy night. The sky is dark, with flashes of lightning illuminating the scene. The keeper, pointing to the horizon, explains the importance of feeling the environment. The drone's lights flicker, as if in confusion or agreement.",
+      "dialogue": "\"See that? That\u2019s why we\u2019re here. You can\u2019t just follow a program. You have to feel it.\"",
+      "critic_score": 8.0,
+      "retaken": false,
+      "clip": "out_live\\shot_2.mp4",
+      "importance": 0.6
+    },
+    {
+      "index": 3,
+      "beat": 3,
+      "description": "Back inside the lighthouse, the keeper is alone, sitting by an old, crackling radio. He looks at a photo of a shipwreck, lost in thought. The drone hovers in, projecting a map and a new set of instructions. The keeper sighs, realizing it's time to let go.",
+      "dialogue": "\"I guess it\u2019s time to let go.\"",
+      "critic_score": 6.0,
+      "retaken": false,
+      "clip": "out_live\\shot_3.mp4",
+      "importance": 0.5
+    },
+    {
+      "index": 4,
+      "beat": 4,
+      "description": "The keeper steps outside, the lighthouse beam now operated by the drone. He looks out at the sea, a small smile on his face. The drone hovers beside him, its light blinking in a rhythm that seems almost like a thank you. The keeper nods, acknowledging the drone's presence.",
+      "dialogue": "\"You\u2019ll do fine, kid.\"",
+      "critic_score": null,
+      "retaken": false,
+      "clip": null,
+      "importance": 0.8
+    }
+  ],
+  "style": {
+    "look": "muted teal-amber grade, 35mm anamorphic, shallow depth of field, soft practical lighting, warm amber highlights, cool shadow tones, vertical 2.39:1",
+    "characters": [
+      {
+        "name": "Lighthouse Keeper",
+        "description": "A 60-year-old man with a rugged, sun-weathered face, short, neatly trimmed gray hair, and a thick, well-groomed beard. He has a sturdy build, standing at about 5'10\", with broad shoulders and a solid frame. His eyes are a deep, stormy blue, and his skin is tanned from years of exposure to the elements. He wears a navy blue peacoat with brass buttons, a heavy, wool cap, and dark, weather-resistant trousers. His hands are rough and calloused, often seen adjusting the lighthouse lens or pointing at maps. He carries a small, old pocket watch on a chain, which he frequently checks.",
+        "voice": "gravelly"
+      },
+      {
+        "name": "Drone",
+        "description": "A sleek, black and silver drone, approximately the size of a small car. It has a streamlined, aerodynamic design with smooth, polished surfaces. The drone is equipped with multiple LED lights that can change color and intensity, primarily using shades of cool blue and white. It has several cameras and sensors, including a large, central camera that mimics an eye, capable of focusing and zooming. The drone's body is slightly curved, giving it a futuristic yet unthreatening appearance. Its movements are smooth and precise, with a subtle hum as it hovers and moves.",
+        "voice": "neutral"
+      }
+    ]
+  },
+  "score": {
+    "mood": "bittersweet",
+    "intensity": 0.65
+  },
+  "budget": {
+    "tokens_used": 13043,
+    "token_budget": 120000,
+    "clips_used": 3,
+    "clip_budget": 8,
+    "retakes_used": 0,
+    "retake_budget": 4,
+    "estimated_cost_usd": 0.6,
+    "max_spend_usd": 2.0,
+    "tokens_by_stage": {
+      "writer": 3156,
+      "art_director": 1142,
+      "prompt_optimizer": 5296,
+      "critic": 3267,
+      "composer": 182
+    },
+    "tokens_by_tier": {
+      "creative": 4298,
+      "grunt": 5478,
+      "vision": 3267
+    }
+  },
+  "report_card": {
+    "shots_planned": 5,
+    "shots_rendered": 3,
+    "shots_retaken": 0,
+    "avg_critic_score": 7.33,
+    "min_critic_score": 6.0,
+    "max_critic_score": 8.0,
+    "quality_arc": [
+      {
+        "shot": 1,
+        "score": 8.0,
+        "importance": 0.7,
+        "retaken": false
+      },
+      {
+        "shot": 2,
+        "score": 8.0,
+        "importance": 0.6,
+        "retaken": false
+      },
+      {
+        "shot": 3,
+        "score": 6.0,
+        "importance": 0.5,
+        "retaken": false
+      }
+    ],
+    "budget_utilization_pct": 10.9,
+    "clip_utilization_pct": 37.5,
+    "estimated_cost_usd": 0.6,
+    "efficiency": {
+      "actual_tokens": 13043,
+      "naive_estimate_tokens": 23999,
+      "tokens_saved_by_routing": 10956,
+      "routing_savings_pct": 45.7
+    }
+  },
+  "decisions": [
+    {
+      "shot": 1,
+      "type": "retake_decision",
+      "score": 8.0,
+      "importance": 0.7,
+      "retake": false,
+      "reason": "score 8.0 >= 7.0 threshold (pass)"
+    },
+    {
+      "shot": 2,
+      "type": "retake_decision",
+      "score": 8.0,
+      "importance": 0.6,
+      "retake": false,
+      "reason": "score 8.0 >= 7.0 threshold (pass)"
+    },
+    {
+      "shot": 3,
+      "type": "retake_decision",
+      "score": 6.0,
+      "importance": 0.5,
+      "retake": false,
+      "reason": "importance 0.5 below adaptive bar (budget-aware skip)"
+    }
+  ],
+  "timeline": [
+    {
+      "phase": "script",
+      "elapsed_s": 29.61
+    },
+    {
+      "phase": "style_bible",
+      "elapsed_s": 36.7
+    },
+    {
+      "phase": "shots_done",
+      "elapsed_s": 394.72
+    },
+    {
+      "phase": "assembly",
+      "elapsed_s": 409.96
+    }
+  ]
+}
