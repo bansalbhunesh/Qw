@@ -31,9 +31,11 @@ def _api_key() -> str:
 
 
 class Tier(str, Enum):
-    GRUNT = "grunt"
-    CREATIVE = "creative"
-    VISION = "vision"
+    """LLM cost tiers — routes calls to the cheapest model that can handle the task."""
+
+    GRUNT = "grunt"         # fast + cheap (qwen3-flash): JSON parsing, prompt refinement, scoring
+    CREATIVE = "creative"   # capable (qwen3-max): beat sheets, scripts, art direction
+    VISION = "vision"       # multimodal (qwen-vl-max): frame-level critique with image input
 
 
 TIER_MODELS: dict[Tier, str] = {
@@ -100,11 +102,13 @@ def wan_size(resolution: str, aspect_ratio: str = "9:16") -> str:
 
 @dataclass
 class BudgetConfig:
-    max_tokens: int = 120_000
-    max_clips: int = 8
-    max_retakes: int = 4
-    pass_threshold: float = 7.0
-    hook_priority_percentile: float = 0.75
+    """Hard ceilings and thresholds that govern resource allocation per production."""
+
+    max_tokens: int = 120_000                # total LLM token budget (prompt + completion)
+    max_clips: int = 8                       # maximum video clips (originals + retakes)
+    max_retakes: int = 4                     # maximum reshoot attempts across all shots
+    pass_threshold: float = 7.0              # critic score >= this means the clip passes
+    hook_priority_percentile: float = 0.75   # base importance bar for earning a reshoot
     # Hard real-money ceiling on video renders (USD). The Governor stops rendering before a
     # clip would push estimated spend past this, so a test run can never torch your balance.
     max_spend_usd: float = 2.00
@@ -114,10 +118,12 @@ class BudgetConfig:
 
 @dataclass
 class ProductionConfig:
-    aspect_ratio: str = "9:16"
-    target_duration_s: int = 60
-    shots: int = 6
-    resolution: str = "720P"
+    """Top-level configuration for a single Auteur production run."""
+
+    aspect_ratio: str = "9:16"           # output aspect ratio ("9:16" vertical, "16:9", "1:1")
+    target_duration_s: int = 60          # target total video duration in seconds
+    shots: int = 6                       # number of shots (beats) to plan and render
+    resolution: str = "720P"             # base Wan render resolution ("480P"/"720P"/"1080P")
     # Visual continuity: seed each shot from the previous shot's final frame (image-to-video)
     # so the character and world stay consistent. Falls back to text-to-video automatically
     # if an i2v render fails, so it never breaks a production.
@@ -127,13 +133,18 @@ class ProductionConfig:
     # Dynamic resolution: hero shots (importance >= threshold) render at hero_resolution,
     # others at base_resolution. Saves real money while keeping hero shots crisp.
     dynamic_resolution: bool = False
-    hero_resolution: str = "1080P"
-    base_resolution: str = "480P"
-    hero_importance_threshold: float = 0.8
+    hero_resolution: str = "1080P"       # resolution for high-importance (hero) shots
+    base_resolution: str = "480P"        # resolution for lower-importance shots
+    hero_importance_threshold: float = 0.8  # importance >= this gets hero resolution
     budget: BudgetConfig = field(default_factory=BudgetConfig)
 
 
 def is_mock() -> bool:
+    """Whether to use the offline mock transport (no API key, no spend).
+
+    Explicit: set AUTEUR_MOCK=1 to force mock, AUTEUR_MOCK=0 to force live.
+    Implicit: if neither is set, mock is used when DASHSCOPE_API_KEY is absent.
+    """
     flag = os.getenv("AUTEUR_MOCK", "").lower()
     if flag in {"1", "true", "yes"}:
         return True
@@ -143,6 +154,7 @@ def is_mock() -> bool:
 
 
 def require_api_key() -> str:
+    """Return the DashScope API key or raise with setup instructions."""
     key = _api_key()
     if not key:
         raise RuntimeError(

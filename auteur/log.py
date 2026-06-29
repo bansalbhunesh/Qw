@@ -14,6 +14,7 @@ _configured = False
 
 
 def setup(level: int = logging.INFO) -> None:
+    """Configure the 'auteur' logger hierarchy (idempotent). Call once at startup."""
     global _configured
     if _configured:
         return
@@ -27,5 +28,6 @@ def setup(level: int = logging.INFO) -> None:
 
 
 def get(name: str) -> logging.Logger:
+    """Return a child logger under the 'auteur' namespace (e.g. 'auteur.writer')."""
     setup()
     return logging.getLogger(f"auteur.{name}")

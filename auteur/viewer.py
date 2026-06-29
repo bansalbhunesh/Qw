@@ -24,6 +24,7 @@ from pydantic import BaseModel
 producer_pool = concurrent.futures.ThreadPoolExecutor(max_workers=3)
 
 def validate_prod_id(prod_id: str):
+    """Reject production IDs that don't match the expected 12-char hex format."""
     if not re.match(r'^[a-f0-9]{12}$', prod_id):
         raise HTTPException(400, "Invalid production ID")
 
@@ -33,6 +34,8 @@ from .events import bus
 
 
 class ProduceReq(BaseModel):
+    """Request body for the /api/produce endpoint."""
+
     premise: str
     shots: int = 6
     quality_gate: float = 0.0
@@ -41,6 +44,7 @@ class ProduceReq(BaseModel):
 
 
 def build_viewer_app() -> FastAPI:
+    """Build the FastAPI application for the real-time production viewer and gallery."""
     app = FastAPI(title="Auteur — Live Production Viewer")
 
     try:
@@ -704,6 +708,7 @@ load();
 
 
 def serve_viewer() -> None:
+    """Launch the viewer web server on the configured port (default 8080)."""
     import uvicorn
     from . import log as _logmod
     _logmod.setup()

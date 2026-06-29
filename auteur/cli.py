@@ -12,6 +12,7 @@ from .config import ProductionConfig
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Parse CLI arguments, configure the production, and run the Showrunner."""
     parser = argparse.ArgumentParser(
         description="Auteur — the budget-aware AI showrunner",
         formatter_class=argparse.RawDescriptionHelpFormatter,

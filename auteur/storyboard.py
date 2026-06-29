@@ -17,6 +17,11 @@ _log = log.get("storyboard")
 
 
 def export_storyboard(workdir: str | Path, manifest: dict, out_path: str | Path | None = None) -> str:
+    """Generate a self-contained HTML storyboard from a production manifest.
+
+    The storyboard embeds sampled frames as base64 data URIs so it can be opened
+    in any browser without a running server — a portable, shareable deliverable.
+    """
     workdir = Path(workdir)
     out = Path(out_path) if out_path else workdir / "storyboard.html"
 
@@ -241,6 +246,7 @@ def _get_frames(workdir: Path, shot: dict) -> list[str]:
 
 
 def _score_color(score: float | None) -> str:
+    """Map a critic score to a semantic color (green/blue/amber/red)."""
     if score is None:
         return "#666"
     if score >= 8:
@@ -253,9 +259,11 @@ def _score_color(score: float | None) -> str:
 
 
 def _bar(ratio: float, color: str) -> str:
+    """Render an inline HTML progress bar from a 0–1 ratio."""
     pct = max(0, min(100, ratio * 100))
     return f'<div class="bar-bg"><div class="bar-fill" style="width:{pct}%;background:{color}"></div></div>'
 
 
 def _esc(s: str) -> str:
+    """Escape HTML special characters for safe inline embedding."""
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")

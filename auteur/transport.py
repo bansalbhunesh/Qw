@@ -28,6 +28,8 @@ _log = log.get("transport")
 
 
 class Transport(Protocol):
+    """Abstract interface for LLM completion backends."""
+
     def complete(
         self, stage: str, model: str, messages: list[dict[str, Any]],
         *, temperature: float, max_tokens: int | None, json_mode: bool,
@@ -39,6 +41,8 @@ class Transport(Protocol):
 # --- live --------------------------------------------------------------------------------
 
 class OpenAITransport:
+    """Live transport — real Qwen calls via the OpenAI-compatible DashScope endpoint."""
+
     def __init__(self) -> None:
         from openai import OpenAI
 
@@ -65,10 +69,12 @@ class OpenAITransport:
 # --- mock --------------------------------------------------------------------------------
 
 def _seed(*parts: str) -> int:
+    """Deterministic hash seed for reproducible mock responses."""
     return int(hashlib.sha256("|".join(parts).encode()).hexdigest(), 16)
 
 
 def _text_of(messages: list[dict[str, Any]]) -> str:
+    """Flatten message content to a single string for mock dispatch heuristics."""
     out: list[str] = []
     for m in messages:
         c = m.get("content", "")
@@ -85,6 +91,12 @@ def _text_of(messages: list[dict[str, Any]]) -> str:
 
 
 class MockTransport:
+    """Offline fake transport — returns stage-appropriate structured content.
+
+    Deterministic but varied: some mock clips intentionally fail the critic so the
+    retake economics and budget scarcity logic are genuinely exercised without spend.
+    """
+
     def complete(self, stage, model, messages, *, temperature, max_tokens, json_mode):
         text = _text_of(messages)
         content = self._dispatch(stage, text)
@@ -216,6 +228,7 @@ class MockTransport:
 
 
 def make_transport() -> Transport:
+    """Factory: return MockTransport if no API key is configured, else OpenAITransport."""
     from .config import is_mock
 
     return MockTransport() if is_mock() else OpenAITransport()

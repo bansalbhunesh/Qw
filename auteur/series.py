@@ -3,14 +3,29 @@
 Usage:
     python -m auteur.series "A detective learns her informant has been her husband all along" --episodes 3
 
-How it works
+Architecture
 ────────────
-Episode 1 runs the full Showrunner pipeline and saves its Style Bible (characters, look,
-props) into the series memory alongside its final frame (the "series anchor").
+Series Mode extends Auteur from single-episode productions to multi-episode arcs while
+maintaining visual consistency and narrative continuity across the full run.
 
-Episode N (N > 1) re-uses the Style Bible from episode 1 so characters never drift, then
-asks Qwen to write a "continuation premise" that picks up where the previous episode left off
-— a true "Previously on…" hand-off. The same Budget Governor settings apply per episode.
+Key design decisions:
+
+  1. **Style Bible Locking** — Episode 1 runs the full Showrunner pipeline and generates
+     the canonical Style Bible (characters, look, color palette). This Bible is extracted
+     from Episode 1's manifest and *injected* into every subsequent episode's Art Director
+     cache, so character appearances never drift across episodes.
+
+  2. **Continuation Premise Generation** — After each episode completes, the series
+     orchestrator feeds the episode's logline and final beat to Qwen (creative tier) to
+     generate a natural one-line continuation premise for the next episode. This creates
+     a "Previously on…" hand-off that maintains narrative momentum.
+
+  3. **Per-Episode Budget Isolation** — Each episode gets its own Showrunner instance
+     with a fresh BudgetGovernor, so a single episode's budget overrun never starves
+     later episodes. The series manifest aggregates totals across all episodes.
+
+  4. **Graceful Degradation** — Individual episode failures are caught and logged but do
+     not halt the series. The series ships whatever episodes it successfully produced.
 
 Outputs
 ───────

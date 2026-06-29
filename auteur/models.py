@@ -1,4 +1,10 @@
-"""Shared data structures passed between agents during a production."""
+"""Shared data structures passed between agents during a production.
+
+These dataclasses define the contract between pipeline stages: the Writer produces
+a Script (beats + shots), the Art Director produces a StyleBible, the Cinematographer
+fills in clip_path on each Shot, the Critic fills in critic_score, and the Production
+aggregates everything into the final deliverable. All are serializable for the manifest.
+"""
 
 from __future__ import annotations
 
@@ -49,15 +55,19 @@ class Shot:
 
 @dataclass
 class Script:
-    premise: str
-    logline: str
-    beats: list[Beat]
-    shots: list[Shot]
+    """A complete screenplay: premise → logline → beat sheet → shot list."""
+
+    premise: str              # the original one-line user premise
+    logline: str              # Writer-generated dramatic question summary
+    beats: list[Beat]         # structured narrative beats with importance weights
+    shots: list[Shot]         # one shot per beat, with video prompts and dialogue
 
 
 @dataclass
 class Production:
-    premise: str
-    script: Script | None = None
-    style: StyleBible | None = None
-    final_path: str | None = None
+    """Top-level container for a single production run's state and outputs."""
+
+    premise: str                       # original user premise
+    script: Script | None = None       # populated after the Writer phase
+    style: StyleBible | None = None    # populated after the Art Director phase
+    final_path: str | None = None      # path to the assembled final cut video

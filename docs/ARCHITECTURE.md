@@ -1,10 +1,105 @@
-# Auteur — Architecture & Build Roadmap
+# Auteur — Architecture & Design Document
+
+> **Full engineering deep-dive**: [How I Built an AI Showrunner That Produced a 7.3-Scored Drama for Just $0.60](https://medium.com/@bhuneshbansal20039888/how-i-built-an-ai-showrunner-that-produced-a-7-3-scored-drama-for-just-0-60-0ed3f5b70857)
+
+---
+
+## Table of Contents
+
+- [Design Principle](#design-principle)
+- [High-Level Architecture](#high-level-architecture)
+- [Module Map](#module-map)
+- [The Budgeted Control Loop](#the-budgeted-control-loop)
+- [Token-Efficiency Techniques](#token-efficiency-techniques-the-limited-budget-criterion)
+- [4-Axis Critic Loop](#4-axis-critic-loop-the-multimodal-orchestration-criterion)
+- [Series Mode — Multi-Episode Continuity](#series-mode--multi-episode-continuity)
+- [Parallel Shot Rendering](#parallel-shot-rendering)
+- [Visual Continuity](#visual-continuity-the-hardest-problem-in-ai-short-drama)
+- [Sound Design](#sound-design-most-submissions-ship-none)
+- [API Reference](#api-reference)
+- [Deployment Architecture](#deployment-architecture)
+- [Security & Configuration](#security--configuration)
+- [Resilience](#resilience)
+- [Mock Mode](#mock-mode)
+- [Build Roadmap](#build-roadmap-to-july-10)
+
+---
 
 ## Design principle
 
 A production is a **constrained optimization**: maximize the Qwen-VL judge's quality score
 subject to a hard token + clip budget. Every component exists to push that frontier. The
 Budget Governor (`auteur/budget.py`) is the optimizer's accountant; the agents are its workers.
+
+## High-level architecture
+
+```mermaid
+flowchart TD
+    P["🎬 Premise"] --> S["SHOWRUNNER<br/>(orchestrator)"]
+    S --> BG["💰 Budget Governor<br/>(token ledger + spend cap)"]
+    S --> W["✍️ WRITER<br/>qwen-max"]
+    W -->|"beat sheet<br/>+ script"| AD["🎨 ART DIRECTOR<br/>qwen-max"]
+    AD -->|"Style Bible<br/>+ char descriptions"| PO["⚡ PROMPT OPTIMIZER<br/>qwen-flash"]
+    PO -->|"refined prompts"| C["📹 CINEMATOGRAPHER<br/>Wan t2v/i2v"]
+    BG -->|"resolution routing<br/>480P/720P/1080P"| C
+    C -->|"raw clips"| EC["🎞️ EDITOR / CRITIC<br/>Qwen-VL + ffmpeg"]
+    EC -->|"fail → retake"| C
+    SND["🔊 SOUND<br/>CosyVoice TTS"] -->|"dialogue<br/>+ score bed"| EC
+    EC -->|"pass → assemble"| F["📦 Deliverables<br/>final.mp4 + storyboard.html<br/>+ ledger.json + manifest.json"]
+
+    style S fill:#1a1a2e,color:#fff,stroke:#6ea8fe
+    style BG fill:#2a1a1a,color:#fff,stroke:#e87040
+    style W fill:#1a2a1a,color:#fff,stroke:#7ec87e
+    style AD fill:#1a2a1a,color:#fff,stroke:#7ec87e
+    style PO fill:#1a2a2a,color:#fff,stroke:#6ea8fe
+    style C fill:#2a2a1a,color:#fff,stroke:#f0ad4e
+    style EC fill:#1a1a2e,color:#fff,stroke:#6ea8fe
+    style SND fill:#1a2a2a,color:#fff,stroke:#6ea8fe
+    style F fill:#0a2a0a,color:#fff,stroke:#7ec87e
+```
+
+### Agent roles summary
+
+| Stage | Model(s) | Tier | Role |
+|-------|----------|------|------|
+| Showrunner | `qwen-max` (plan) · `qwen-flash` (routing) | creative / grunt | Budget allocation, orchestration, early-exit decisions |
+| Writer | `qwen-max` | creative | Premise → logline → beat sheet → scripted shots (structured JSON) |
+| Art Director | `qwen-max` + `qwen-vl-max` | creative / vision | Character & Style Bible — generated once, cached for entire production |
+| Prompt Optimizer | `qwen-flash` | grunt | Rewrite video prompts for Wan's strengths (pays for itself in fewer retakes) |
+| Cinematographer | `wan2.7-t2v`, `wan2.7-i2v` | video | Render shots; i2v for continuity chaining; dynamic resolution per shot |
+| Sound | CosyVoice v3-plus TTS | audio | Dialogue voicing (17 English voice descriptors) + procedural score bed |
+| Editor / Critic | `qwen-vl-max` + ffmpeg | vision | 4-axis scoring (incl. cross-shot continuity); assemble final cut |
+
+### Data flow per shot
+
+```mermaid
+sequenceDiagram
+    participant S as Showrunner
+    participant BG as Budget Governor
+    participant PO as Prompt Optimizer
+    participant C as Cinematographer
+    participant CR as Critic (Qwen-VL)
+    participant SND as Sound
+
+    S->>BG: Check remaining budget
+    BG-->>S: Budget OK / clip gate
+    S->>PO: Refine video prompt (grunt tier)
+    PO-->>S: Optimized prompt
+    S->>C: Render clip (Wan t2v/i2v)
+    C-->>S: Raw clip + frames
+    S->>CR: Score 4 axes (+ prev shot frames)
+    CR-->>S: Score verdict
+    alt Score < threshold & retakes available
+        S->>BG: Debit retake budget
+        S->>C: Re-render with critic feedback
+        C-->>S: Retake clip
+        S->>CR: Re-score
+        CR-->>S: Updated verdict
+    end
+    S->>SND: Voice dialogue (CosyVoice)
+    SND-->>S: Audio clip
+    S->>S: Overlay audio, advance anchor frame
+```
 
 ## Module map
 
@@ -158,6 +253,130 @@ Two layers, both metered as first-class production stages:
   seeded to vary, so some shots fail and the retake economics genuinely run.
 - **Media**: `make_placeholder_clip` synthesizes real per-shot ffmpeg clips; frame sampling,
   audio overlay, and crossfade assembly are the *same code* used live.
+
+## Series Mode — Multi-episode continuity
+
+Most AI video systems generate standalone clips. Auteur runs **entire TV series** with
+persistent world state across episodes.
+
+```mermaid
+flowchart LR
+    E1["Episode 1"] -->|"lock Style Bible<br/>+ final beat"| E2["Episode 2"]
+    E2 -->|"chain narrative<br/>+ locked Bible"| E3["Episode 3"]
+    E3 -->|"..."| EN["Episode N"]
+
+    style E1 fill:#1a2a1a,color:#fff,stroke:#7ec87e
+    style E2 fill:#1a2a2a,color:#fff,stroke:#6ea8fe
+    style E3 fill:#2a1a2a,color:#fff,stroke:#c87ec8
+    style EN fill:#2a2a1a,color:#fff,stroke:#f0ad4e
+```
+
+**How it works:**
+
+1. Episode 1 produces a complete production (script → render → score → assemble).
+2. On wrap, the Showrunner **permanently locks the Style Bible** (character descriptions,
+   visual look, voice assignments) into `series_manifest.json`.
+3. Episode 2 reads the final narrative beat of Episode 1, generates a logical continuation
+   premise, and injects the locked Style Bible.
+4. Characters never drift. The world stays consistent across the full multi-episode arc.
+
+**CLI usage:**
+
+```bash
+AUTEUR_MOCK=1 python -m auteur.series "A detective learns her informant is her husband" --episodes 3
+# → series_out/episode_1/ episode_2/ episode_3/ series_manifest.json series_storyboard.html
+```
+
+## API Reference
+
+Auteur ships a production-grade FastAPI backend for programmatic access and the live web Studio.
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/produce` | Start a new production from a premise (JSON body) |
+| `GET` | `/api/events?prod_id=<id>` | SSE stream — real-time production events (concurrent-safe) |
+| `GET` | `/api/gallery` | Browse past productions with scores and metrics |
+| `GET` | `/api/metrics` | Aggregate statistics across all productions |
+| `GET` | `/productions/{id}/final.mp4` | Download the finished video |
+| `GET` | `/productions/{id}/storyboard.html` | View the visual production breakdown |
+| `GET` | `/productions/{id}/ledger.json` | Token-level budget audit trail |
+| `GET` | `/productions/{id}/manifest.json` | Full production state (script, shots, scores) |
+| `GET` | `/docs` | Interactive Swagger/OpenAPI documentation |
+
+### Request example
+
+```json
+POST /api/produce
+{
+  "premise": "A lighthouse keeper teaches the drone sent to replace him",
+  "max_spend_usd": 1.00,
+  "quality_gate": 6.0,
+  "dynamic_resolution": true
+}
+```
+
+### SSE event types
+
+| Event | Payload | When |
+|-------|---------|------|
+| `script` | Beat sheet + shot list | Writer finishes |
+| `bible` | Character & Style Bible | Art Director finishes |
+| `shot_start` | Shot index + prompt | Render begins |
+| `critic` | 4-axis scores + verdict | Critic finishes scoring |
+| `retake` | Retake reason + new prompt | Governor authorizes reshoot |
+| `shot_done` | Shot path + final score | Shot accepted |
+| `budget` | Token/spend snapshot | After each metered call |
+| `done` | Final paths + report card | Production complete |
+
+## Deployment architecture
+
+```mermaid
+flowchart TD
+    subgraph "Alibaba Cloud"
+        ECS["ECS Instance<br/>(FastAPI + Uvicorn)"]
+        OSS["OSS Bucket<br/>(anchor frames + assets)"]
+        DS["DashScope API<br/>(Qwen + Wan + CosyVoice)"]
+    end
+
+    Browser["Browser<br/>(Studio + Gallery)"] -->|"HTTP + SSE"| ECS
+    CLI["CLI Client"] -->|"Direct calls"| DS
+    ECS -->|"API calls"| DS
+    ECS -->|"Upload anchor frames"| OSS
+    DS -->|"i2v reference"| OSS
+
+    style ECS fill:#1a1a2e,color:#fff,stroke:#6ea8fe
+    style OSS fill:#2a2a1a,color:#fff,stroke:#f0ad4e
+    style DS fill:#1a2a1a,color:#fff,stroke:#7ec87e
+    style Browser fill:#2a1a2a,color:#fff,stroke:#c87ec8
+    style CLI fill:#2a1a1a,color:#fff,stroke:#e87040
+```
+
+### Docker Compose services
+
+| Service | Port | Role |
+|---------|------|------|
+| `api` | `:8000` | FastAPI backend (production API + SSE events) |
+| `viewer` | `:8080` | Static frontend (Studio + Gallery) |
+
+### One-command deployment
+
+```bash
+cp .env.example .env          # add your DashScope key
+docker compose up -d           # API on :8000, viewer on :8080
+```
+
+## Security & configuration
+
+| Concern | Mechanism |
+|---------|-----------|
+| **API key isolation** | `.env` file, never committed (`.gitignore`); mock mode auto-activates without key |
+| **Spend protection** | Hard USD ceiling (`--max-spend-usd`), pre-flight `--estimate`, per-resolution clip pricing |
+| **Path traversal** | `deploy/alibaba_cloud.py` validates all file paths against the productions directory |
+| **CORS** | Explicitly configured for browser clients in the FastAPI backend |
+| **Thread safety** | Event bus uses thread-safe queues; bounded thread pool for parallel rendering |
+| **Rate limiting** | Exponential backoff with jitter on all external API calls (`auteur/retry.py`) |
 
 ## Build roadmap (to July 10)
 

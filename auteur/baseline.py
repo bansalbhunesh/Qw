@@ -37,6 +37,13 @@ to other shots. Each prompt must stand alone."""
 
 
 class NaiveShowrunner:
+    """Minimal baseline showrunner — no budget optimization, no critic loop.
+
+    Used as the control group in A/B benchmarks against the full Auteur pipeline.
+    Every difference in output quality or token spend is attributable to Auteur's
+    Budget Governor, critic loop, and tier routing.
+    """
+
     def __init__(self, cfg: ProductionConfig, workdir: str | Path = "out_naive"):
         self.cfg = cfg
         self.workdir = Path(workdir)
@@ -47,6 +54,7 @@ class NaiveShowrunner:
         self.editor = Editor(self.client, self.governor)
 
     def run(self, premise: str) -> Production:
+        """Run a single-pass production: script → render all shots → assemble. No critic."""
         _log.info("naive baseline: %s", premise[:60])
         data = self.client.chat_json(
             STAGE, Tier.CREATIVE,

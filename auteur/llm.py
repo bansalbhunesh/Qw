@@ -20,6 +20,13 @@ _JSON_REPAIR_ATTEMPTS = 2
 
 
 class QwenClient:
+    """Metered, tier-routed wrapper over a pluggable LLM transport.
+
+    Every LLM call goes through this client so the Budget Governor sees every token.
+    Supports plain chat, JSON-validated chat (with automatic repair on parse failure),
+    and multimodal vision calls for the Qwen-VL critic.
+    """
+
     def __init__(self, governor: BudgetGovernor, transport: Transport | None = None):
         self.governor = governor
         self._t = transport or make_transport()
@@ -34,6 +41,7 @@ class QwenClient:
         max_tokens: int | None = None,
         json_mode: bool = False,
     ) -> str:
+        """Send a chat completion request. Meters tokens via the Budget Governor."""
         model = TIER_MODELS[tier]
         self.governor.assert_can_spend_tokens(_estimate_tokens(messages))
         content, p_tok, c_tok = self._t.complete(
@@ -93,6 +101,7 @@ class QwenClient:
 
 
 def _estimate_tokens(messages: list[dict[str, Any]]) -> int:
+    """Rough token estimate for pre-flight budget checks (chars/4 + 256 overhead)."""
     chars = 0
     for m in messages:
         c = m.get("content", "")

@@ -22,15 +22,17 @@ from .config import BudgetConfig, Tier
 
 @dataclass
 class LedgerEntry:
-    ts: float
-    stage: str            # which agent ("writer", "critic", ...)
-    kind: str             # "llm" | "video" | "tts"
-    model: str
-    tier: str | None
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    clips: int = 0
-    note: str = ""
+    """One row in the production ledger — a single metered API call."""
+
+    ts: float                 # Unix timestamp of the call
+    stage: str                # which agent ("writer", "critic", ...)
+    kind: str                 # "llm" | "video" | "tts"
+    model: str                # concrete model ID (e.g. "qwen3-flash")
+    tier: str | None          # cost tier ("grunt"/"creative"/"vision"), None for non-LLM
+    prompt_tokens: int = 0    # input tokens consumed
+    completion_tokens: int = 0  # output tokens consumed
+    clips: int = 0            # number of video clips rendered (for kind="video")
+    note: str = ""            # free-text annotation (prompt snippet, failure reason, etc.)
 
     @property
     def total_tokens(self) -> int:
@@ -39,9 +41,11 @@ class LedgerEntry:
 
 @dataclass
 class BudgetState:
-    tokens_used: int = 0
-    clips_used: int = 0
-    retakes_used: int = 0
+    """Mutable counters tracking resource consumption during a production."""
+
+    tokens_used: int = 0     # total LLM tokens consumed (prompt + completion)
+    clips_used: int = 0      # total video clips rendered (originals + retakes)
+    retakes_used: int = 0    # number of reshoot attempts consumed
 
 
 class BudgetExceeded(RuntimeError):
@@ -49,6 +53,14 @@ class BudgetExceeded(RuntimeError):
 
 
 class BudgetGovernor:
+    """Central resource controller — meters every API call and enforces hard ceilings.
+
+    The Governor is the single source of truth for resource consumption. Every LLM,
+    video, and TTS call flows through its ``record_*`` methods, and every resource
+    allocation check flows through its ``can_*`` / ``assert_*`` gates. The resulting
+    ledger (``ledger.json``) is a first-class deliverable that proves budget compliance.
+    """
+
     def __init__(self, budget: BudgetConfig, ledger_path: str | Path | None = None):
         self.budget = budget
         self.state = BudgetState()
@@ -61,6 +73,7 @@ class BudgetGovernor:
         self, stage: str, model: str, tier: Tier, prompt_tokens: int, completion_tokens: int,
         note: str = "",
     ) -> None:
+        """Record an LLM call's token consumption in the ledger."""
         self.state.tokens_used += prompt_tokens + completion_tokens
         self.entries.append(
             LedgerEntry(
@@ -70,6 +83,7 @@ class BudgetGovernor:
         )
 
     def record_video(self, stage: str, model: str, clips: int = 1, note: str = "") -> None:
+        """Record a video render in the ledger and increment the clip counter."""
         self.state.clips_used += clips
         self.entries.append(
             LedgerEntry(ts=time.time(), stage=stage, kind="video", model=model, tier=None,
@@ -77,6 +91,7 @@ class BudgetGovernor:
         )
 
     def record_tts(self, stage: str, model: str, note: str = "") -> None:
+        """Record a text-to-speech synthesis call in the ledger."""
         self.entries.append(
             LedgerEntry(ts=time.time(), stage=stage, kind="tts", model=model, tier=None, note=note)
         )
@@ -126,16 +141,29 @@ class BudgetGovernor:
         the system becomes more selective as resources dwindle — a production-grade behavior
         that static thresholds can't match.
         """
+        # Gate 1: the shot already passed the quality bar — no reshoot needed.
         if critic_score >= self.budget.pass_threshold:
             return False
+        # Gate 2: hard retake count ceiling — no budget left for any reshoot.
         if self.state.retakes_used >= self.budget.max_retakes:
             return False
+        # Gate 3: clip budget or dollar cap exhausted — can't render even if wanted.
         if not self.can_render_clip():
             return False
+
+        # --- Adaptive scarcity-based importance threshold ---
+        # As retakes are consumed, `scarcity` rises from 0.0 (full budget) to 1.0
+        # (last retake). This linearly raises the importance bar a shot must clear
+        # to earn a reshoot, ensuring late-budget retakes are reserved for the most
+        # narratively critical shots (hooks > cutaways).
         remaining_retakes = self.budget.max_retakes - self.state.retakes_used
         total_retakes = self.budget.max_retakes
+        # scarcity ∈ [0, 1]: 0 = all retakes available, 1 = last retake remaining
         scarcity = 1.0 - (remaining_retakes / max(1, total_retakes))
+        # Raise the base threshold (default 0.75) by up to +0.10 as budget depletes.
+        # At full budget: threshold = 0.75 (generous). At last retake: 0.85 (selective).
         adaptive_threshold = self.budget.hook_priority_percentile + 0.1 * scarcity
+        # Only reshoot if the shot's narrative importance clears the adaptive bar.
         return shot_importance >= adaptive_threshold
 
     def register_retake(self) -> None:
@@ -144,6 +172,7 @@ class BudgetGovernor:
     # --- reporting -------------------------------------------------------------------
 
     def summary(self) -> dict:
+        """Return a serializable snapshot of budget state for manifests and the web viewer."""
         return {
             "tokens_used": self.state.tokens_used,
             "token_budget": self.budget.max_tokens,
