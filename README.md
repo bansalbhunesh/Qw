@@ -97,7 +97,7 @@ Most short-drama agents are a straight line: `premise → script → generate ev
 They burn tokens blindly and hope the output is good. Track 2 explicitly asks builders to
 **"maximize output quality under a limited token budget"** — and almost nobody engineers for it.
 
-**The two systems that make Auteur different:**
+**The three systems that make Auteur different:**
 
 ### 1. The Budget Governor — a real token economy
 - **Tiered model routing.** Cheap `qwen-flash` handles grunt work — shot-list formatting, prompt cleanup. `qwen-max` is reserved for the creative-critical beats: the hook, the dialogue, the final cut decisions.
@@ -113,6 +113,13 @@ prompt adherence, character consistency, shot quality, and **cross-shot visual c
 frames against the previous shot to catch character drift). A failing take gets exactly one budgeted
 reshoot with a corrected prompt; a passing take moves to the cut. **This is the vision model closing
 the loop on the video model** — what "multimodal orchestration" actually means in practice.
+
+### 3. Series Mode — Episode-Native Continuity
+Auteur doesn't just generate standalone shorts; it runs entire TV series. When Episode 1 wraps,
+the Showrunner **permanently locks the Style Bible** (character descriptions, visual look). When
+you request Episode 2, it reads the final narrative beat of Episode 1, generates a logical continuation,
+and automatically injects the locked Style Bible. The characters never drift, and the world remains
+perfectly consistent across a multi-episode run.
 
 ---
 
@@ -314,6 +321,7 @@ scored **7.3/10** by Qwen-VL, using **10.9%** of the token budget and **$0.60** 
 with the tiered router cutting token cost **46%** versus a naive all-`qwen-max` pipeline.
 
 Working today:
+- **Series Mode (Multi-episode continuity):** Locks the Style Bible and chains narratives across episodes
 - Budget Governor + token ledger (13K tokens / 10.9% of budget for a live multi-shot film)
 - 4-axis Qwen-VL critic loop: prompt adherence, character consistency, shot quality, cross-shot visual continuity
 - Importance-weighted retakes with adaptive scarcity: bar rises as budget depletes
