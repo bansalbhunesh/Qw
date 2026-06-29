@@ -3,6 +3,8 @@
 This file contains the copy for each Devpost submission field.
 Paste each section into the corresponding field on the Devpost project page.
 
+📖 **Full technical deep-dive:** [How I Built an AI Showrunner That Produced a 7.3-Scored Drama for Just $0.60](https://medium.com/@bhuneshbansal20039888/how-i-built-an-ai-showrunner-that-produced-a-7-3-scored-drama-for-just-0-60-0ed3f5b70857)
+
 ---
 
 ## Project Name
@@ -27,11 +29,11 @@ That question became Auteur.
 
 ## What it does
 
-Auteur turns a one-line premise into a complete vertical short drama — script, AI-voiced dialogue, Wan-rendered footage, procedural score, crossfade edits — while treating every token as a conscious decision.
+Auteur turns a one-line premise into a complete vertical short drama — script, AI-voiced dialogue, Wan-rendered footage, procedural score, crossfade edits — while treating every token as a conscious decision. It also supports **Series Mode**: after Episode 1 wraps, Auteur locks the Style Bible and reads the final narrative beat to write a seamless Episode 2 continuation. Characters never drift, and the world stays perfectly consistent across a multi-episode arc.
 
 **The result:** A live run produced a 7.3/10-scored vertical short using just 10.9% of the 120,000-token budget, cutting token cost 46% versus a naive all-`qwen-max` approach. Real footage. Real score. Real spend: $0.60.
 
-The system has two core innovations:
+The system has three core innovations:
 
 **1. The Budget Governor** — a live token economy that meters every LLM, video, and TTS call, routes grunt work to `qwen-flash` and creative decisions to `qwen-max`, allocates retake budget to the most narratively important shots first, and enforces a hard dollar ceiling before a single render happens. The `ledger.json` it produces is a first-class production artifact: auditable proof of every routing decision.
 
@@ -63,6 +65,41 @@ The web Studio streams every decision live: script beats being written, Style Bi
 
 ---
 
+## Try it yourself
+
+Every claim Auteur makes is verifiable. The entire pipeline — budget governor, critic loop, series mode, benchmark, ablation — runs locally in deterministic mock mode with zero API spend. Judges can confirm the architecture end-to-end in under two minutes:
+
+```bash
+# Clone and install
+git clone https://github.com/YOUR_REPO/auteur.git && cd auteur
+pip install -r requirements.txt
+
+# 1. Run a single production (mock mode — no API key needed)
+AUTEUR_MOCK=1 python -m auteur.cli "A lighthouse keeper teaches the drone sent to replace him"
+# → out/final.mp4 + out/ledger.json + out/storyboard.html
+
+# 2. Run a multi-episode series
+AUTEUR_MOCK=1 python -m auteur.series "A detective learns her informant is her husband" --episodes 3
+# → series_out/episode_1/ … episode_3/, each with locked Style Bible continuity
+
+# 3. Run the benchmark (Auteur vs. naive baseline)
+AUTEUR_MOCK=1 python -m bench.benchmark --premises bench/premises.txt
+# → bench/report.md with side-by-side scores
+
+# 4. Run the ablation study
+AUTEUR_MOCK=1 python -m bench.ablation --premise "A lighthouse keeper teaches the drone sent to replace him"
+# → proves each feature's contribution in isolation
+
+# 5. Run the full test suite (85 tests)
+AUTEUR_MOCK=1 python -m pytest -q
+```
+
+> **On Windows (PowerShell):** prefix commands with `$env:AUTEUR_MOCK="1";` instead of `AUTEUR_MOCK=1`.
+
+Mock mode swaps two seams — the DashScope LLM client returns structured stubs, and Wan returns a deterministic placeholder clip — without touching any agent logic. The architecture you test is the architecture that runs live.
+
+---
+
 ## Challenges we ran into
 
 - **Cross-shot character consistency** — Wan generates each shot independently by default. We solved this with two strategies: the Style Bible (character descriptions injected into every prompt via the Art Director) and image-to-video continuity chaining (the final frame of shot N seeds shot N+1 via OSS upload). Qwen-VL then scores continuity across adjacent frames to catch drift before it ships.
@@ -81,8 +118,15 @@ The web Studio streams every decision live: script beats being written, Style Bi
 - **46% token cost reduction** via tiered model routing, proven by the `ledger.json`
 - A **benchmark harness** that scores Auteur vs. a naive baseline using Qwen-VL as an impartial judge — in a field where ~95% of hackathon submissions have zero evaluation
 - An **ablation study** that disables each architectural feature in turn to prove its contribution — not a grab-bag of features, an engineered system
+- **Series Mode** that locks the Style Bible after Episode 1 and maintains character and world consistency across a multi-episode arc
 - **85 passing tests**, covering every agent, the budget governor, the event bus, the storyboard export, and the web API
 - A production that is **truly resilient**: voice failures don't discard clips, partial-shot recovery, Windows-safe assembly, quota-exhaustion detection with clear guidance
+
+### Audit Trail
+
+We believe the strongest proof of an engineering claim is an open ledger. Every production Auteur runs — mock or live — emits a `ledger.json`: a line-by-line record of every API call, the model tier it was routed to, the tokens consumed, the dollar cost, and the agent that requested it.
+
+We invite judges to inspect `out/ledger.json` (or `out_live/ledger.json` for the live run) directly. The 46% cost reduction, the tiered routing decisions, the retake budget allocation — it's all there, row by row. No summary statistics without the raw data to back them up.
 
 ---
 
@@ -106,3 +150,7 @@ The web Studio streams every decision live: script beats being written, Style Bi
 ## Built With
 
 `python` · `qwen-max` · `qwen-flash` · `qwen-vl-max` · `wan2.7-t2v` · `cosyvoice-v2` · `alibaba-cloud` · `dashscope` · `alibaba-oss` · `fastapi` · `ffmpeg` · `uvicorn` · `pillow` · `pytest` · `docker`
+
+---
+
+📖 **Read the full build story:** [How I Built an AI Showrunner That Produced a 7.3-Scored Drama for Just $0.60 — Medium](https://medium.com/@bhuneshbansal20039888/how-i-built-an-ai-showrunner-that-produced-a-7-3-scored-drama-for-just-0-60-0ed3f5b70857)
