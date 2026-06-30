@@ -10,7 +10,7 @@ versus a naive all-`qwen-max` pipeline.**
 
 `Track 2: AI Showrunner` · Global AI Hackathon Series with Qwen Cloud
 
-![Tests](https://img.shields.io/badge/tests-87%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-92%20passing-2ea44f)
 ![Python](https://img.shields.io/badge/python-3.11%2B-3776ab)
 ![Qwen](https://img.shields.io/badge/Qwen-Max%20·%20VL%20·%20Wan%20·%20CosyVoice-6e56cf)
 ![Cloud](https://img.shields.io/badge/Alibaba%20Cloud-DashScope%20%2B%20OSS%20%2B%20ECS-ff6a00)
@@ -239,7 +239,7 @@ AUTEUR_MOCK=1 python -m bench.benchmark --premises bench/premises.txt
 # Run the ablation study (feature contribution analysis):
 AUTEUR_MOCK=1 python -m bench.ablation --premise "A lighthouse keeper teaches the drone sent to replace him"
 
-# Run the full test suite (87 tests):
+# Run the full test suite (92 tests):
 AUTEUR_MOCK=1 python -m pytest -q
 ```
 
@@ -348,7 +348,7 @@ Working today:
 - **Dynamic Foley Soundscapes**: Procedurally synthesizes environment-aware ambient layers (rain, wind, rumble) using ffmpeg filters (zero token cost) and mixes them perfectly under dialogue.
 - **MCP Server Integration**: Embedded Model Context Protocol (`mcp_server.py`) allows Claude/Cursor/Qwen to autonomously trigger Auteur productions or critique video files.
 - **Qwen Custom Skill**: Bundles a `Qwen_Skill.json` manifest allowing Auteur to plug into Qwen Studio out-of-the-box.
-- 87 passing tests, naive baseline, benchmark harness, ablation study
+- 92 passing tests, naive baseline, benchmark harness, ablation study
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design, module map, and roadmap.
 
