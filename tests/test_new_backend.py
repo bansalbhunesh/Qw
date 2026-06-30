@@ -66,9 +66,14 @@ def test_production_vault_saves_and_resumes(tmp_path):
     # 1. Run a partial production that fails halfway
     show = Showrunner(_cfg(shots=3), workdir=tmp_path)
     
+    # Give valid paths so we don't hit media errors
+    from auteur.media import make_placeholder_clip
+    clip0 = str(tmp_path / "dummy_clip_0.mp4")
+    make_placeholder_clip(clip0, 0, 4.0)
+    
     # We will patch the dp.render to fail on shot index 1 (second shot)
     with patch.object(show.dp, "render") as mock_render:
-        mock_render.side_effect = ["dummy_clip_0.mp4", Exception("Simulated crash!"), "dummy_clip_2.mp4"]
+        mock_render.side_effect = [clip0, Exception("Simulated crash!"), "dummy_clip_2.mp4"]
         
         # This run will generate the script, style, and shot 0, then crash on shot 1.
         prod = show.run("A Vault Test")
