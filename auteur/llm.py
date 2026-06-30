@@ -73,7 +73,11 @@ class QwenClient:
                 )},
             ]
             raw2 = self.chat(stage, tier, repair_msgs, json_mode=True, **kw)
-            return _loads_lenient(raw2)
+            try:
+                return _loads_lenient(raw2)
+            except (json.JSONDecodeError, ValueError) as second_err:
+                _log.error("[%s] JSON repair failed, returning empty dict: %s", stage, second_err)
+                return {}
 
     def vision(
         self,

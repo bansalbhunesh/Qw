@@ -20,12 +20,13 @@ STAGE = "critic"
 _log = log.get("editor")
 
 _CRITIC_SYS = """\
-You are a ruthless but fair film editor reviewing a single shot from a short drama. You score \
-the rendered frames against the intended shot description.
+You are a ruthless, adversarial, and uncompromising film critic grading an AI-generated video shot. \
+Your job is NOT to be nice; your job is to aggressively penalize hallucinations, warping, and drift. \
+You are scoring the rendered frames against the intended shot description.
 
-Score 0-10 on each axis:
-- prompt_adherence: does the rendered image match what was requested? (composition, action, setting)
-- character_consistency: do characters look as described? (age, clothing, features)
+Score 0-10 on each axis. A score of 7+ means flawless photorealism. Grade harshly.
+- prompt_adherence: does the rendered image match what was requested? Penalize heavily for missing subjects.
+- character_consistency: do characters look as described? Penalize heavily for morphing or AI-artifacts.
 - shot_quality: cinematic quality — lighting, focus, framing, mood.
 - visual_continuity: does this shot feel like it belongs in the same film as the previous shot? \
 (same characters, same wardrobe, consistent color grade, coherent world). Score 8 if this is the first shot.
@@ -33,11 +34,21 @@ Score 0-10 on each axis:
 Return ONLY valid JSON:
 {"prompt_adherence": n, "character_consistency": n, "shot_quality": n, "visual_continuity": n, \
 "overall": n, \
+"usable_duration": n.n, \
 "fix": "if overall < 7, write ONE specific, concrete prompt modification to fix the weakest \
-axis. If overall >= 7, empty string."}"""
+axis. If overall >= 7, empty string."}
+
+For `usable_duration`: Current AI video models often degrade temporally (physics break, objects morph) near the end of the clip. Analyze the progression of frames. If degradation occurs, set `usable_duration` to the exact second (e.g., 3.2) right before the break. If the clip is flawless until the end, set it to 5.0."""
 
 
 class Editor:
+    """Qwen-VL critic loop and final video assembly.
+
+    Scores rendered clips on four axes (prompt adherence, character consistency,
+    shot quality, visual continuity), advises the Governor on reshoots, and
+    assembles approved clips with crossfade transitions and dialogue overlay.
+    """
+
     def __init__(self, client: QwenClient, governor: BudgetGovernor):
         self.client = client
         self.governor = governor
@@ -135,7 +146,7 @@ class Editor:
 
     @staticmethod
     def assemble(
-        clip_paths: list[str],
+        shots: list[Shot],
         out_path: str | Path,
         *,
         audio_paths: list[str | None] | None = None,
@@ -144,23 +155,27 @@ class Editor:
     ) -> str:
         """Assemble approved clips into one vertical short.
 
+        Trims clips based on Qwen-VL's `usable_duration` to remove temporal degradation.
         If audio_paths are provided, each clip gets its dialogue overlaid before assembly.
-        Uses crossfade transitions between clips for cinematic quality. The `transitions`
-        list (one per cut) can specify "fade", "dissolve", or "cut" per transition.
+        Uses crossfade transitions between clips for cinematic quality.
         """
         final_clips: list[str] = []
         out_path = Path(out_path)
 
-        if audio_paths:
-            for i, (clip, audio) in enumerate(zip(clip_paths, audio_paths)):
-                if audio and Path(audio).exists():
-                    merged = str(out_path.parent / f"merged_{i}.mp4")
-                    merged = media.overlay_audio(clip, audio, merged)
-                    final_clips.append(merged)
-                else:
-                    final_clips.append(clip)
-        else:
-            final_clips = list(clip_paths)
+        for i, shot in enumerate(shots):
+            clip = shot.clip_path
+            if not clip:
+                continue
+                
+            # Trim the fat (temporal degradation) before assembly
+            trimmed = str(out_path.parent / f"trimmed_{i}.mp4")
+            if shot.usable_duration and shot.usable_duration > 0:
+                clip = media.trim_video(clip, shot.usable_duration, trimmed)
+
+            audio = audio_paths[i] if audio_paths and i < len(audio_paths) else None
+            merged = str(out_path.parent / f"merged_{i}.mp4")
+            merged = media.overlay_audio(clip, audio, merged)
+            final_clips.append(merged)
 
         if crossfade and len(final_clips) >= 2:
             return media.concat_with_crossfade(final_clips, out_path)

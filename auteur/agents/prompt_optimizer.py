@@ -37,6 +37,12 @@ Return ONLY the refined prompt text. No JSON, no explanation."""
 
 
 class PromptOptimizer:
+    """Rewrites raw video prompts for maximum Wan render quality.
+
+    A cheap grunt-tier LLM call that front-loads key visuals, specifies lighting,
+    and avoids known Wan failure modes. Pays for itself in fewer retakes.
+    """
+
     def __init__(self, client: QwenClient):
         self.client = client
 

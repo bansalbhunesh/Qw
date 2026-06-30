@@ -40,6 +40,13 @@ class QuotaExhausted(RuntimeError):
 
 
 class Cinematographer:
+    """Renders shots via Wan (text-to-video / image-to-video) with budget enforcement.
+
+    Supports both t2v and i2v modes. When a reference image is provided (for visual
+    continuity), attempts i2v first and falls back to t2v on failure. All renders are
+    metered through the Budget Governor.
+    """
+
     def __init__(self, governor: BudgetGovernor, resolution: str = "720P",
                  aspect_ratio: str = "9:16"):
         self.governor = governor

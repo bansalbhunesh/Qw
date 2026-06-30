@@ -114,6 +114,10 @@ def build_viewer_app() -> FastAPI:
             show = Showrunner(cfg, workdir=workdir)
             try:
                 show.run(req.premise)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                bus.emit("production_failed", "showrunner", reason=str(e))
             finally:
                 bus.close(pid)
 

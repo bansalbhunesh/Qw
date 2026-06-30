@@ -50,6 +50,7 @@ class Shot:
     # filled in during production:
     clip_path: str | None = None
     critic_score: float | None = None
+    usable_duration: float | None = None
     retaken: bool = False
 
 

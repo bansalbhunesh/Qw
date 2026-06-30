@@ -160,7 +160,7 @@ def main(argv: list[str] | None = None) -> int:
 
     results = run_ablation(args.premise, outdir)
     report = render_ablation_report(results)
-    (outdir / "ablation_report.md").write_text(report)
+    (outdir / "ablation_report.md").write_text(report, encoding="utf-8")
     (outdir / "ablation_results.json").write_text(
         json.dumps([asdict(r) for r in results], indent=2)
     )

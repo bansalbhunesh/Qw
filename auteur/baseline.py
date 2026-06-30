@@ -85,6 +85,7 @@ class NaiveShowrunner:
                 _log.error("naive: shot %d failed, skipping", shot.index)
                 continue
 
-        final = self.editor.assemble(clip_paths, self.workdir / "final.mp4") if clip_paths else ""
+        kept_shots = [s for s in shots if s.clip_path in clip_paths]
+        final = self.editor.assemble(kept_shots, self.workdir / "final.mp4") if kept_shots else ""
         self.governor.flush()
         return Production(premise=premise, script=script, final_path=final)

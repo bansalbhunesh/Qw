@@ -1,0 +1,48 @@
+[
+  {
+    "generation": 1,
+    "results": [
+      {
+        "individual": {
+          "strategy_name": "Cinematography First",
+          "system_prompt_instruction": "Focus entirely on camera angles, lens mm, lighting direction, and film stock. Describe the visual geometry."
+        },
+        "prompt": "A woman staring out a rainy window, cinematic lighting.",
+        "clip": "gen0_ind0.mp4",
+        "score": 9.0
+      },
+      {
+        "individual": {
+          "strategy_name": "Subject Emotion First",
+          "system_prompt_instruction": "Focus intensely on the subject's micro-expressions, posture, eye movement, and internal emotional state. Minimal environmental details."
+        },
+        "prompt": "A woman staring out a rainy window, cinematic lighting.",
+        "clip": "gen0_ind1.mp4",
+        "score": 9.0
+      }
+    ]
+  },
+  {
+    "generation": 2,
+    "results": [
+      {
+        "individual": {
+          "strategy_name": "Cinematography First",
+          "system_prompt_instruction": "Focus entirely on camera angles, lens mm, lighting direction, and film stock. Describe the visual geometry."
+        },
+        "prompt": "A woman staring out a rainy window, cinematic lighting.",
+        "clip": "gen1_ind0.mp4",
+        "score": 9.0
+      },
+      {
+        "individual": {
+          "strategy_name": "Cinematography First",
+          "system_prompt_instruction": "Focus entirely on camera angles, lens mm, lighting direction, and film stock. Describe the visual geometry."
+        },
+        "prompt": "A woman staring out a rainy window, cinematic lighting.",
+        "clip": "gen1_ind1.mp4",
+        "score": 9.0
+      }
+    ]
+  }
+]

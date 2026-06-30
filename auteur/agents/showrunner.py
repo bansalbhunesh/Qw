@@ -56,6 +56,13 @@ Soundtrack brief: pick the single mood that best underscores the emotional arc."
 
 
 class Showrunner:
+    """Top-level orchestrator — plans the production and enforces the budget end to end.
+
+    Coordinates all agents (Writer, Art Director, Cinematographer, Critic, Sound, Editor)
+    through a five-phase pipeline: script → bible → render+critique → assemble → deliver.
+    The Budget Governor gates every resource allocation decision.
+    """
+
     def __init__(self, cfg: ProductionConfig, workdir: str | Path = "out"):
         self.cfg = cfg
         self.workdir = Path(workdir)
@@ -119,12 +126,48 @@ class Showrunner:
         if removed:
             _log.info("cleaned %d stale artifact(s) from %s", removed, self.workdir)
 
-    def run(self, premise: str) -> Production:
+    def _save_vault(self, prod: Production) -> None:
+        """Atomic checkpointing of the production state."""
+        import pickle
+        import tempfile
+        vault_path = self.workdir / "vault.pkl"
+        tmp_path = vault_path.with_suffix(".tmp")
+        try:
+            with open(tmp_path, "wb") as f:
+                pickle.dump(prod, f)
+            tmp_path.replace(vault_path)
+            _log.debug("saved production vault checkpoint")
+        except Exception as e:
+            _log.warning("failed to save vault checkpoint: %s", e)
+
+    def _load_vault(self) -> Production | None:
+        """Load production state from checkpoint if it exists."""
+        import pickle
+        vault_path = self.workdir / "vault.pkl"
+        if vault_path.exists():
+            try:
+                with open(vault_path, "rb") as f:
+                    prod = pickle.load(f)
+                _log.info("resumed production from vault checkpoint")
+                return prod
+            except Exception as e:
+                _log.warning("failed to load vault checkpoint, starting fresh: %s", e)
+        return None
+
+    def run(self, premise: str, resume: bool = False) -> Production:
+        """Execute the full production pipeline. Returns the completed Production."""
         import time as _time
         _log.info("=== PRODUCTION START: %s ===", premise[:60])
         self._log_cost_estimate()
-        self._clean_workdir()
-        prod = Production(premise=premise)
+        
+        prod = None
+        if resume:
+            prod = self._load_vault()
+            
+        if not prod:
+            self._clean_workdir()
+            prod = Production(premise=premise)
+            
         _t0 = _time.time()
         _timeline: list[dict] = []
 
@@ -134,7 +177,9 @@ class Showrunner:
         bus.emit("production_start", "showrunner", premise=premise)
 
         # --- phase 1: writing ---
-        prod.script = self.writer.write(premise, self.cfg.shots)
+        if not prod.script:
+            prod.script = self.writer.write(premise, self.cfg.shots)
+            self._save_vault(prod)
         _mark("script")
         _log.info("script: %d beats, %d shots", len(prod.script.beats), len(prod.script.shots))
         bus.emit("script_complete", "writer",
@@ -144,7 +189,9 @@ class Showrunner:
                  n_shots=len(prod.script.shots))
 
         # --- phase 2: art direction ---
-        prod.style = self.art.build_bible(prod.script)
+        if not prod.style:
+            prod.style = self.art.build_bible(prod.script)
+            self._save_vault(prod)
         _mark("style_bible")
         bus.emit("style_bible_complete", "art_director",
                  look=prod.style.look,
@@ -152,6 +199,7 @@ class Showrunner:
                              for c in prod.style.characters])
 
         # --- phase 3: production (render + critique + voice per shot) ---
+        media.init_hls_playlist(self.workdir / "stream.m3u8")
         if self.cfg.consistency:
             clip_paths, audio_paths = self._produce_sequential(prod)
         else:
@@ -208,10 +256,14 @@ class Showrunner:
         )
         if transitions:
             _log.info("transition plan: %s", " -> ".join(transitions))
+            
+        # Get the actual Shot objects for the clips we are keeping
+        kept_shots = [prod.script.shots[i] for i, clip in enumerate(prod.script.shots) if clip.clip_path in clip_paths]
+
         bus.emit("assembly_start", "editor",
                  n_clips=len(clip_paths), transitions=transitions)
         silent_cut = self.editor.assemble(
-            clip_paths, self.workdir / "final_nomusic.mp4",
+            kept_shots, self.workdir / "final_nomusic.mp4",
             audio_paths=audio_paths, transitions=transitions,
         )
 
@@ -260,6 +312,17 @@ class Showrunner:
         prev_frame_uris: list[str] | None = None
 
         for shot in prod.script.shots:
+            if shot.clip_path:
+                _log.info("resuming: shot %d already rendered, skipping", shot.index)
+                clip_paths.append(shot.clip_path)
+                # Note: we don't have the audio path in the model, but we can assume it's there or reconstruct it
+                audio_path = str(self.workdir / f"audio_{shot.index}.wav")
+                if Path(audio_path).exists():
+                    audio_paths.append(audio_path)
+                else:
+                    audio_paths.append(None)
+                continue
+
             if not self.governor.can_render_clip():
                 reason = ("spend cap $%.2f reached (est. $%.2f spent)"
                           % (self.cfg.budget.max_spend_usd, self.governor.estimated_cost_usd)
@@ -275,6 +338,22 @@ class Showrunner:
                 )
                 clip_paths.append(clip)
                 audio_paths.append(audio)
+                
+                # Save checkpoint after every successful shot
+                self._save_vault(prod)
+                
+                # Stream the shot live to HLS
+                try:
+                    stream_clip = clip
+                    if audio:
+                        stream_clip = media.overlay_audio(clip, audio, self.workdir / f"stream_{shot.index}.mp4")
+                    # Trim temporal degradation for live stream too
+                    if shot.usable_duration and shot.usable_duration < 5.0:
+                        stream_clip = media.trim_video(stream_clip, shot.usable_duration, self.workdir / f"stream_{shot.index}_trim.mp4")
+                    media.append_hls_segment(stream_clip, self.workdir / "stream.m3u8", shot.index)
+                except Exception as e:
+                    _log.warning("failed to append HLS segment for shot %d: %s", shot.index, e)
+                
                 try:
                     prev_frame_uris = self.editor.sample_frames(clip, n=1)
                 except Exception:
@@ -298,7 +377,15 @@ class Showrunner:
     def _produce_parallel(self, prod: Production) -> tuple[list[str], list[str | None]]:
         """Render shots concurrently (no continuity chaining). Wall-clock speedup for live renders."""
         eligible = []
+        results: dict[int, tuple[str, str | None]] = {}
         for shot in prod.script.shots:
+            if shot.clip_path:
+                _log.info("resuming: shot %d already rendered, skipping (parallel)", shot.index)
+                audio_path = str(self.workdir / f"audio_{shot.index}.wav")
+                audio = audio_path if Path(audio_path).exists() else None
+                results[shot.index] = (shot.clip_path, audio)
+                continue
+
             if not self.governor.can_render_clip():
                 reason = ("spend cap $%.2f reached (est. $%.2f spent)"
                           % (self.cfg.budget.max_spend_usd, self.governor.estimated_cost_usd)
@@ -311,31 +398,33 @@ class Showrunner:
 
         self.governor.state.clips_used -= len(eligible)
 
-        results: dict[int, tuple[str, str | None]] = {}
-        workers = min(len(eligible), 4)
-        _log.info("parallel render: %d shots with %d workers", len(eligible), workers)
-        bus.emit("parallel_render_start", "showrunner", n_shots=len(eligible), workers=workers)
+        if eligible:
+            workers = min(len(eligible), 4)
+            _log.info("parallel render: %d shots with %d workers", len(eligible), workers)
+            bus.emit("parallel_render_start", "showrunner", n_shots=len(eligible), workers=workers)
 
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = {
-                pool.submit(self._produce_shot, prod, shot): shot
-                for shot in eligible
-            }
-            for future in as_completed(futures):
-                shot = futures[future]
-                try:
-                    clip, audio = future.result()
-                    results[shot.index] = (clip, audio)
-                except QuotaExhausted as exc:
-                    _log.error("STOPPING: %s", exc)
-                    self._quota_exhausted = True
-                except Exception:
-                    _log.error("shot %d failed in parallel — skipping:\n%s",
-                               shot.index, traceback.format_exc())
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                futures = {
+                    pool.submit(self._produce_shot, prod, shot): shot
+                    for shot in eligible
+                }
+                for future in as_completed(futures):
+                    shot = futures[future]
+                    try:
+                        clip, audio = future.result()
+                        results[shot.index] = (clip, audio)
+                    except QuotaExhausted as exc:
+                        _log.error("STOPPING: %s", exc)
+                        self._quota_exhausted = True
+                    except Exception:
+                        _log.error("shot %d failed in parallel — skipping:\n%s",
+                                   shot.index, traceback.format_exc())
+
+            self._save_vault(prod)
 
         clip_paths = []
         audio_paths: list[str | None] = []
-        for shot in eligible:
+        for shot in prod.script.shots:
             if shot.index in results:
                 clip, audio = results[shot.index]
                 clip_paths.append(clip)
@@ -390,7 +479,15 @@ class Showrunner:
         # --- critique (with cross-shot continuity when previous frames available) ---
         frames = self.editor.sample_frames(clip)
         review = self.editor.critique(shot, frames, prev_frame_uris=prev_frame_uris)
-        shot.critic_score = float(review.get("overall", 0.0))
+        try:
+            val = review.get("overall")
+            shot.critic_score = float(val if val is not None else 0.0)
+            ud_val = review.get("usable_duration")
+            shot.usable_duration = float(ud_val) if ud_val is not None else 5.0
+        except (ValueError, TypeError):
+            _log.warning("critic returned invalid score: %s, defaulting to 0.0", review.get("overall"))
+            shot.critic_score = 0.0
+            shot.usable_duration = 5.0
 
         # --- conditional reshoot ---
         should_retake = self.governor.should_retake(shot.critic_score, shot.importance)
@@ -424,22 +521,43 @@ class Showrunner:
             shot.retaken = True
             retake_frames = self.editor.sample_frames(clip)
             retake_review = self.editor.critique(shot, retake_frames, prev_frame_uris=prev_frame_uris)
-            shot.critic_score = float(retake_review.get("overall", shot.critic_score))
+            try:
+                val = retake_review.get("overall")
+                shot.critic_score = float(val if val is not None else shot.critic_score)
+                ud_val = retake_review.get("usable_duration")
+                if ud_val is not None:
+                    shot.usable_duration = float(ud_val)
+            except (ValueError, TypeError):
+                _log.warning("retake critic returned invalid score: %s, keeping previous", retake_review.get("overall"))
 
         shot.clip_path = clip
         bus.emit("shot_complete", "showrunner",
                  index=shot.index, score=shot.critic_score, retaken=shot.retaken,
                  importance=shot.importance)
 
-        # --- voice (isolated — a TTS failure must never discard a rendered clip) ---
+        # --- voice & foley (isolated — a TTS failure must never discard a rendered clip) ---
         audio: str | None = None
         try:
             voice = self._voice_for(prod, shot)
-            audio = self.sound.voice_line(
-                shot.dialogue, voice, str(self.workdir / f"audio_{shot.index}.wav"),
-            )
+            dialogue_path = str(self.workdir / f"dialogue_{shot.index}.wav")
+            dialogue = self.sound.voice_line(shot.dialogue, voice, dialogue_path)
+            
+            foley_path = str(self.workdir / f"foley_{shot.index}.wav")
+            foley = self.sound.foley(shot.description, duration, foley_path)
+            
+            if dialogue and foley:
+                audio = str(self.workdir / f"audio_{shot.index}.wav")
+                media._run([
+                    "-i", dialogue, "-i", foley,
+                    "-filter_complex", "[0:a][1:a]amix=inputs=2:duration=longest[aout]",
+                    "-map", "[aout]", "-c:a", "pcm_s16le", audio
+                ])
+            elif dialogue:
+                audio = dialogue
+            elif foley:
+                audio = foley
         except Exception:
-            _log.warning("voicing shot %d failed — shipping silent:\n%s",
+            _log.warning("voicing/foley shot %d failed — shipping silent:\n%s",
                          shot.index, traceback.format_exc())
 
         return clip, audio

@@ -229,7 +229,7 @@ footer{{text-align:center;color:#444;font-size:0.7rem;margin-top:3rem;padding-to
 </div></body></html>"""
 
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(html)
+    out.write_text(html, encoding="utf-8")
     _log.info("storyboard -> %s", out)
     return str(out)
 

@@ -139,7 +139,7 @@ def main(argv: list[str] | None = None) -> int:
 
     results = run_benchmark(premises, outdir)
     report = render_report(results)
-    (outdir / "report.md").write_text(report)
+    (outdir / "report.md").write_text(report, encoding="utf-8")
     (outdir / "results.json").write_text(json.dumps([asdict(r) for r in results], indent=2))
     print(report)
     return 0

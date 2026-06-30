@@ -64,6 +64,13 @@ _SCORE_KEYS: dict[str, tuple[float, float, float]] = {
 
 
 class Sound:
+    """Dialogue voicing (CosyVoice TTS) and procedural ambient music bed generation.
+
+    Each shot's dialogue is voiced with a per-character voice from the Style Bible.
+    The music bed is synthesized procedurally via ffmpeg — zero tokens, zero cost,
+    always works offline.
+    """
+
     def __init__(self, governor: BudgetGovernor):
         self.governor = governor
 
@@ -122,6 +129,40 @@ class Sound:
                   mood, intensity, duration, out.name)
         return str(out)
 
+    # --- Foley / Soundscape --------------------------------------------------------
+
+    def foley(self, description: str, duration: float, out_path: str) -> str | None:
+        """Synthesize procedural ambient Foley/soundscape based on scene description.
+        
+        Uses ffmpeg lavfi anoisesrc to generate contextual ambience (rain, wind, rumble, fire)
+        at zero API cost, layered under the dialogue and music bed.
+        """
+        out = Path(out_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        desc = description.lower()
+        
+        fcomplex = ""
+        if "rain" in desc or "storm" in desc or "monsoon" in desc:
+            fcomplex = "anoisesrc=c=brown:r=44100:a=0.3,lowpass=f=600"
+        elif "wind" in desc or "ocean" in desc or "beach" in desc:
+            fcomplex = "anoisesrc=c=pink:r=44100:a=0.4,lowpass=f=300"
+        elif "fire" in desc or "burn" in desc:
+            fcomplex = "anoisesrc=c=brown:r=44100:a=0.6,lowpass=f=800"
+        elif "space" in desc or "void" in desc or "rumble" in desc:
+            fcomplex = "anoisesrc=c=brown:r=44100:a=0.2,lowpass=f=100"
+        else:
+            return None  # No specific foley needed
+            
+        fcomplex += f",afade=t=in:d=0.5,afade=t=out:st={max(0.0, duration - 0.5):.2f}:d=0.5"
+        
+        media._run([
+            "-f", "lavfi", "-i", f"nullsrc=d={duration:.2f}",
+            "-filter_complex", f"{fcomplex}[a]", "-map", "[a]",
+            "-c:a", "pcm_s16le", "-t", f"{duration:.2f}", str(out),
+        ])
+        _log.info("foley: generated soundscape for '%s' -> %s", desc[:20], out.name)
+        return str(out)
+
     # --- DashScope CosyVoice TTS ---------------------------------------------------
 
     def _cosyvoice_sync(self, text: str, voice: str, out_path: str) -> str:
@@ -172,7 +213,10 @@ class Sound:
             status = out.get("task_status", "UNKNOWN")
 
             if status == "SUCCEEDED":
-                audio_url = out.get("audio_url") or out.get("results", [{}])[0].get("url", "")
+                results = out.get("results")
+                audio_url = out.get("audio_url")
+                if not audio_url and results and isinstance(results, list):
+                    audio_url = results[0].get("url", "")
                 if not audio_url:
                     raise RuntimeError(f"TTS SUCCEEDED but no audio_url: {out}")
                 return self._download_audio(audio_url, out_path)

@@ -96,6 +96,13 @@ One shot per beat, in order. Make video_prompts maximally concrete and renderabl
 
 
 class Writer:
+    """Premise → structured screenplay with beat-weighted importance.
+
+    Two-pass generation: first creates a beat sheet with narrative structure and
+    per-beat importance weights, then expands each beat into a cinematic shot with
+    dialogue and a self-contained video prompt.
+    """
+
     def __init__(self, client: QwenClient):
         self.client = client
 

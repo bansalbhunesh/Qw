@@ -228,7 +228,7 @@ def _write_series_storyboard(episodes: list[dict], outdir: Path,
 
 
 def run_series(series_premise: str, n_episodes: int, cfg: ProductionConfig,
-               outdir: Path) -> list[dict]:
+               outdir: Path, resume: bool = False) -> list[dict]:
     """Run a full N-episode series. Returns list of episode manifests."""
     from .agents.showrunner import Showrunner
 
@@ -239,6 +239,33 @@ def run_series(series_premise: str, n_episodes: int, cfg: ProductionConfig,
 
     for ep_num in range(1, n_episodes + 1):
         ep_dir = outdir / f"episode_{ep_num}"
+        manifest_path = ep_dir / "manifest.json"
+        
+        # Check if episode is already complete when resuming
+        if resume and manifest_path.exists():
+            try:
+                ep_manifest = json.loads(manifest_path.read_text())
+                if ep_manifest.get("final"):
+                    _log.info("SERIES: Episode %d already complete, skipping", ep_num)
+                    ep_manifest["_path"] = str(manifest_path)
+                    episode_manifests.append(ep_manifest)
+                    if ep_num == 1:
+                        series_bible = _load_series_bible(manifest_path)
+                    
+                    if ep_num < n_episodes:
+                        logline = ep_manifest.get("logline", current_premise)
+                        beats = ep_manifest.get("beats", [])
+                        final_beat = beats[-1].get("summary", "") if beats else ""
+                        from .llm import QwenClient
+                        from .budget import BudgetGovernor
+                        temp_client = QwenClient(BudgetGovernor(cfg.budget))
+                        current_premise = _generate_continuation(
+                            temp_client, ep_num, series_premise, logline, final_beat,
+                        )
+                    continue
+            except Exception:
+                pass
+
         _log.info("=" * 60)
         _log.info("SERIES: Starting Episode %d/%d", ep_num, n_episodes)
         _log.info("Premise: %s", current_premise)
@@ -251,7 +278,7 @@ def run_series(series_premise: str, n_episodes: int, cfg: ProductionConfig,
             _inject_bible(show, series_bible)
 
         try:
-            prod = show.run(current_premise)
+            prod = show.run(current_premise, resume=resume)
         except Exception:
             _log.error("Episode %d failed:\n%s", ep_num, traceback.format_exc())
             episode_manifests.append({"episode": ep_num, "premise": current_premise,
@@ -288,11 +315,11 @@ def run_series(series_premise: str, n_episodes: int, cfg: ProductionConfig,
         summary = show.governor.summary()
         pct = summary["tokens_used"] / max(1, summary["token_budget"]) * 100
         print(f"\n  Episode {ep_num} complete")
-        print(f"    Final cut  : {prod.final_path}")
+        print(f"    Final cut  : {prod.final_path if prod else 'None'}")
         print(f"    Tokens     : {summary['tokens_used']:,} ({pct:.1f}% of budget)")
         if summary.get("estimated_cost_usd", 0) > 0:
             print(f"    Spend      : ${summary['estimated_cost_usd']:.2f}")
-        scored = [s for s in (prod.script.shots if prod.script else [])
+        scored = [s for s in (prod.script.shots if prod and prod.script else [])
                   if s.critic_score is not None]
         if scored:
             avg = sum(s.critic_score for s in scored) / len(scored)
@@ -319,6 +346,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", default="series_out", help="output directory for the series")
     parser.add_argument("--no-consistency", action="store_true")
     parser.add_argument("--quality-gate", type=float, default=0.0)
+    parser.add_argument("--resume", action="store_true", help="resume from last checkpoint if crashed")
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args(argv)
 
@@ -339,9 +367,11 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\n{'=' * 60}")
     print(f"  AUTEUR SERIES — {args.episodes} EPISODES")
     print(f"  Premise: {args.premise[:55]}")
+    if args.resume:
+        print(f"  Mode: RESUME (picking up from vault checkpoints)")
     print(f"{'=' * 60}\n")
 
-    episodes = run_series(args.premise, args.episodes, cfg, outdir)
+    episodes = run_series(args.premise, args.episodes, cfg, outdir, resume=args.resume)
 
     # Write series-level artifacts
     _write_series_manifest(episodes, outdir, args.premise)

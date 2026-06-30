@@ -20,6 +20,7 @@ _log = log.get("media")
 
 @lru_cache(maxsize=1)
 def ffmpeg_exe() -> str:
+    """Locate the ffmpeg binary — system PATH first, then imageio-ffmpeg fallback."""
     from shutil import which
 
     sys_ff = which("ffmpeg")
@@ -32,6 +33,7 @@ def ffmpeg_exe() -> str:
 
 @lru_cache(maxsize=1)
 def ffprobe_exe() -> str:
+    """Locate the ffprobe binary, falling back to ffmpeg if unavailable."""
     from shutil import which
 
     sys_fp = which("ffprobe")
@@ -45,6 +47,7 @@ def ffprobe_exe() -> str:
 
 
 def _run(args: list[str], *, timeout: int = 120) -> subprocess.CompletedProcess:
+    """Run an ffmpeg command, raising RuntimeError on non-zero exit."""
     result = subprocess.run(
         [ffmpeg_exe(), "-y", *args],
         stdout=subprocess.PIPE,
@@ -190,6 +193,7 @@ def extract_frames(clip_path: str | Path, n: int = 3) -> list[str]:
 
 
 def frame_to_data_uri(png_path: str | Path) -> str:
+    """Encode a PNG file as a base64 data URI for the Qwen-VL critic."""
     raw = Path(png_path).read_bytes()
     b64 = base64.b64encode(raw).decode("ascii")
     suffix = Path(png_path).suffix.lstrip(".").lower() or "png"
@@ -224,13 +228,62 @@ def extract_last_frame(clip_path: str | Path, out_path: str | Path | None = None
 
 # --- audio overlay ------------------------------------------------------------------
 
-def overlay_audio(video_path: str, audio_path: str | None, out_path: str | Path) -> str:
-    """Merge a dialogue audio track onto a video clip. If no audio, copy the clip."""
+def trim_video(video_path: str | Path, max_duration: float, out_path: str | Path) -> str:
+    """Trim a video clip to a maximum duration (used to cut off temporal degradation)."""
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    if not audio_path or not Path(audio_path).exists():
+    
+    dur = probe_duration(video_path)
+    if dur <= max_duration + 0.1:
+        # Close enough, just copy it
         import shutil
         shutil.copy2(video_path, out_path)
+        return str(out_path)
+        
+    _log.info("trimming %s from %.1fs down to %.1fs", Path(video_path).name, dur, max_duration)
+    try:
+        _run([
+            "-i", str(video_path), 
+            "-t", f"{max_duration:.2f}",
+            "-c:v", "copy", "-c:a", "copy", 
+            str(out_path)
+        ])
+        return str(out_path)
+    except RuntimeError as exc:
+        _log.warning("trim failed (%s) — using full clip", exc)
+        import shutil
+        shutil.copy2(video_path, out_path)
+        return str(out_path)
+
+
+def overlay_audio(video_path: str, audio_path: str | None, out_path: str | Path) -> str:
+    """Merge a dialogue audio track onto a video clip. If no audio, ensure a silent track."""
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    video_has_audio = has_audio_stream(video_path)
+    has_new_audio = audio_path and Path(audio_path).exists()
+
+    if not has_new_audio:
+        if video_has_audio:
+            import shutil
+            shutil.copy2(video_path, out_path)
+            return str(out_path)
+        else:
+            _run([
+                "-i", video_path, "-f", "lavfi",
+                "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+                "-map", "0:v", "-map", "1:a",
+                "-c:v", "copy", "-c:a", "aac", "-shortest", str(out_path)
+            ])
+            return str(out_path)
+
+    if not video_has_audio:
+        _run([
+            "-i", video_path, "-i", audio_path,
+            "-map", "0:v", "-map", "1:a",
+            "-c:v", "copy", "-c:a", "aac", "-shortest", str(out_path)
+        ])
         return str(out_path)
 
     _run([
@@ -305,7 +358,7 @@ def concat_clips(clip_paths: list[str], out_path: str | Path) -> str:
     listing = out_path.with_suffix(".concat.txt")
     listing.write_text("".join(
         f"file '{Path(p).resolve().as_posix()}'\n" for p in clip_paths
-    ))
+    ), encoding="utf-8")
 
     total_dur = sum(probe_duration(p) for p in clip_paths)
     _log.info("assembling %d clips (%.1fs total) -> %s", len(clip_paths), total_dur, out_path.name)
@@ -414,3 +467,59 @@ def concat_with_crossfade(
 
     _log.warning("crossfade failed, falling back to plain concat")
     return concat_clips(clip_paths, out_path)
+
+
+# --- HLS Streaming ---------------------------------------------------------------------
+
+def init_hls_playlist(m3u8_path: str | Path) -> None:
+    """Initialize an empty HLS m3u8 playlist."""
+    m3u8_path = Path(m3u8_path)
+    m3u8_path.parent.mkdir(parents=True, exist_ok=True)
+    m3u8_path.write_text(
+        "#EXTM3U\n"
+        "#EXT-X-VERSION:3\n"
+        "#EXT-X-TARGETDURATION:10\n"
+        "#EXT-X-MEDIA-SEQUENCE:0\n",
+        encoding="utf-8"
+    )
+    _log.info("initialized HLS playlist at %s", m3u8_path.name)
+
+
+def append_hls_segment(clip_path: str | Path, m3u8_path: str | Path, index: int) -> str:
+    """Transcode a clip to an MPEG-TS segment and append it to the HLS playlist.
+    
+    This enables real-time broadcasting of the AI production as it is being generated,
+    chunk by chunk.
+    """
+    clip_path = Path(clip_path)
+    m3u8_path = Path(m3u8_path)
+    segment_path = m3u8_path.parent / f"segment_{index}.ts"
+    
+    # Ensure audio track exists for consistent TS packaging
+    safe_clip = clip_path
+    if not has_audio_stream(clip_path):
+        safe_clip = clip_path.with_name(f"{clip_path.stem}_silent.mp4")
+        _run([
+            "-i", str(clip_path), "-f", "lavfi",
+            "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+            "-map", "0:v", "-map", "1:a",
+            "-c:v", "copy", "-c:a", "aac", "-shortest", str(safe_clip)
+        ])
+
+    _run([
+        "-i", str(safe_clip),
+        "-c", "copy",
+        "-bsf:v", "h264_mp4toannexb",
+        "-f", "mpegts",
+        str(segment_path)
+    ])
+    
+    dur = probe_duration(safe_clip)
+    
+    # Append to playlist
+    with open(m3u8_path, "a", encoding="utf-8") as f:
+        f.write(f"#EXTINF:{dur:.3f},\n")
+        f.write(f"segment_{index}.ts\n")
+        
+    _log.info("appended HLS segment %d (%.1fs) to %s", index, dur, m3u8_path.name)
+    return str(segment_path)

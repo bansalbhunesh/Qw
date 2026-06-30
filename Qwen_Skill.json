@@ -1,0 +1,93 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Auteur AI Showrunner Plugin",
+    "description": "Custom skill for Qwen Studio to autonomously produce video content and evaluate clips using the Auteur Budget Governor and Critic.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000/api"
+    }
+  ],
+  "paths": {
+    "/produce": {
+      "post": {
+        "operationId": "produceVideo",
+        "summary": "Produce a short AI film",
+        "description": "Autonomously orchestrate Qwen and Wan to produce a scripted video.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "premise": {
+                    "type": "string",
+                    "description": "The premise or story logline for the production."
+                  },
+                  "max_spend_usd": {
+                    "type": "number",
+                    "description": "Hard USD spend limit for video generation."
+                  }
+                },
+                "required": ["premise"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful production",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "manifest_url": { "type": "string" },
+                    "video_url": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/critique": {
+      "post": {
+        "operationId": "critiqueVideo",
+        "summary": "Evaluate a video clip",
+        "description": "Run the Qwen-VL Critic on a video against a prompt.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "video_url": { "type": "string" },
+                  "prompt": { "type": "string" }
+                },
+                "required": ["video_url", "prompt"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Critique scores and fix suggestions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

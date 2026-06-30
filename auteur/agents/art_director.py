@@ -51,10 +51,17 @@ the same person from the description alone, with zero external context."""
 
 
 class ArtDirector:
+    """Generates and applies the Style Bible — the visual consistency engine.
+
+    The Bible locks character appearances and world look into a single canonical
+    document, then injects it into every shot prompt to prevent visual drift.
+    """
+
     def __init__(self, client: QwenClient):
         self.client = client
 
     def build_bible(self, script: Script) -> StyleBible:
+        """Generate the canonical Style Bible from the full script."""
         shots_rendered = "\n".join(
             f"{s.index}. [{script.beats[s.beat_index].label if s.beat_index < len(script.beats) else '?'}] "
             f"{s.description}"
