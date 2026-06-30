@@ -105,7 +105,6 @@ def _inject_bible(showrunner, bible: dict) -> None:
     if not bible:
         return
     try:
-        from .agents.art_director import ArtDirector
         from .models import StyleBible, Character
 
         characters = [
@@ -368,7 +367,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  AUTEUR SERIES — {args.episodes} EPISODES")
     print(f"  Premise: {args.premise[:55]}")
     if args.resume:
-        print(f"  Mode: RESUME (picking up from vault checkpoints)")
+        print("  Mode: RESUME (picking up from vault checkpoints)")
     print(f"{'=' * 60}\n")
 
     episodes = run_series(args.premise, args.episodes, cfg, outdir, resume=args.resume)
@@ -387,7 +386,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  SERIES COMPLETE — {len(episodes)} episodes")
     print(f"  Series storyboard : {outdir / 'series_storyboard.html'}")
     print(f"  Series manifest   : {outdir / 'series_manifest.json'}")
-    print(f"\n  Aggregate budget across all episodes:")
+    print("\n  Aggregate budget across all episodes:")
     print(f"    Total tokens : {total_tokens:,}")
     if total_cost > 0:
         print(f"    Total spend  : ${total_cost:.2f}")

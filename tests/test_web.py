@@ -76,3 +76,26 @@ def test_deploy_openapi_schema_builds():
     r = _deploy().get("/openapi.json")
     assert r.status_code == 200
     assert r.json().get("paths")
+
+
+def test_web_endpoints_critique(tmp_path):
+    # Setup dummy video
+    from auteur.media import make_placeholder_clip
+    dummy_video = tmp_path / "dummy_critique.mp4"
+    make_placeholder_clip(dummy_video, 0, seconds=2.0)
+
+    # 1. Test deploy API critique
+    deploy_client = _deploy()
+    r = deploy_client.post("/critique", json={"video_url": str(dummy_video), "prompt": "A person in a room"})
+    assert r.status_code == 200
+    res = r.json()
+    assert "overall" in res
+    assert res["overall"] > 0
+
+    # 2. Test viewer API critique
+    viewer_client = _viewer()
+    r = viewer_client.post("/api/critique", json={"video_url": str(dummy_video), "prompt": "A person in a room"})
+    assert r.status_code == 200
+    res = r.json()
+    assert "overall" in res
+    assert res["overall"] > 0

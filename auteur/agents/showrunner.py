@@ -129,7 +129,6 @@ class Showrunner:
     def _save_vault(self, prod: Production) -> None:
         """Atomic checkpointing of the production state."""
         import pickle
-        import tempfile
         vault_path = self.workdir / "vault.pkl"
         tmp_path = vault_path.with_suffix(".tmp")
         try:
@@ -717,8 +716,6 @@ class Showrunner:
         """
         by_tier = self.governor.summary().get("tokens_by_tier", {})
         grunt = by_tier.get("grunt", 0)
-        creative = by_tier.get("creative", 0)
-        vision = by_tier.get("vision", 0)
         actual = self.governor.state.tokens_used
         naive_estimate = actual + grunt * 2
         savings = max(0, naive_estimate - actual)

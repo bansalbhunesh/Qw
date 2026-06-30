@@ -48,6 +48,11 @@ class ProduceResponse(BaseModel):
     manifest: dict | None = None
 
 
+class CritiqueRequest(BaseModel):
+    video_url: str
+    prompt: str
+
+
 # --- Alibaba Cloud OSS asset storage ---------------------------------------------------
 
 class OSSClient:
@@ -222,7 +227,8 @@ def build_app():
             total += 1
             rc, b = m.get("report_card", {}), m.get("budget", {})
             if rc.get("avg_critic_score"):
-                sum_score += rc["avg_critic_score"]; scored += 1
+                sum_score += rc["avg_critic_score"]
+                scored += 1
             sum_tokens += b.get("tokens_used", 0)
             sum_clips += b.get("clips_used", 0)
             sum_cost += b.get("estimated_cost_usd", 0) or 0
@@ -233,6 +239,61 @@ def build_app():
             "total_cost_usd": round(sum_cost, 2),
             "avg_tokens_per_film": round(sum_tokens / total) if total else 0,
         }
+
+    @app.post("/critique")
+    def critique(req: CritiqueRequest) -> dict:
+        import tempfile
+        import shutil
+        import requests
+        from auteur.models import Shot
+        from auteur import media
+        from auteur.config import ProductionConfig
+        from auteur.budget import BudgetGovernor
+        from auteur.llm import QwenClient
+        from auteur.agents.editor import Editor
+
+        cfg = ProductionConfig()
+        ledger_dir = Path(tempfile.gettempdir()) / "auteur_critique"
+        ledger_dir.mkdir(parents=True, exist_ok=True)
+        governor = BudgetGovernor(cfg.budget, ledger_path=ledger_dir / "ledger.json")
+        client = QwenClient(governor)
+        editor = Editor(client, governor)
+
+        video_path = req.video_url
+        is_temp = False
+        if video_path.startswith("http://") or video_path.startswith("https://"):
+            try:
+                _log.info("downloading video for critique: %s", video_path)
+                resp = requests.get(video_path, stream=True, timeout=60)
+                resp.raise_for_status()
+                temp_video = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+                temp_video.close()
+                video_path = temp_video.name
+                is_temp = True
+                with open(video_path, "wb") as f:
+                    shutil.copyfileobj(resp.raw, f)
+                _log.info("downloaded video to: %s", video_path)
+            except Exception as e:
+                _log.error("failed to download video from URL: %s", e)
+                return {"error": f"Failed to download video: {e}"}
+
+        try:
+            path = Path(video_path)
+            if not path.exists():
+                return {"error": f"Video file not found: {video_path}"}
+            frames = media.extract_frames(path)
+            shot = Shot(index=0, beat_index=0, description=req.prompt, video_prompt=req.prompt, dialogue="", importance=0.5)
+            review = editor.critique(shot, frames, prev_frame_uris=None)
+            return review
+        except Exception as e:
+            _log.error("critique failed: %s", e)
+            return {"error": str(e)}
+        finally:
+            if is_temp and os.path.exists(video_path):
+                try:
+                    os.unlink(video_path)
+                except OSError:
+                    pass
 
     return app
 

@@ -16,9 +16,13 @@ import re
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel
+
+from .agents.showrunner import Showrunner
+from .config import ProductionConfig
+from .events import bus
 
 # Global producer thread pool to bound concurrency
 producer_pool = concurrent.futures.ThreadPoolExecutor(max_workers=3)
@@ -27,10 +31,6 @@ def validate_prod_id(prod_id: str):
     """Reject production IDs that don't match the expected 12-char hex format."""
     if not re.match(r'^[a-f0-9]{12}$', prod_id):
         raise HTTPException(400, "Invalid production ID")
-
-from .agents.showrunner import Showrunner
-from .config import ProductionConfig
-from .events import bus
 
 
 class ProduceReq(BaseModel):
@@ -41,6 +41,11 @@ class ProduceReq(BaseModel):
     quality_gate: float = 0.0
     max_spend_usd: float = 2.00
     dynamic_resolution: bool = False
+
+
+class CritiqueReq(BaseModel):
+    video_url: str
+    prompt: str
 
 
 def build_viewer_app() -> FastAPI:
@@ -79,7 +84,8 @@ def build_viewer_app() -> FastAPI:
             total += 1
             rc, b = m.get("report_card", {}), m.get("budget", {})
             if rc.get("avg_critic_score"):
-                sum_score += rc["avg_critic_score"]; scored += 1
+                sum_score += rc["avg_critic_score"]
+                scored += 1
             sum_tokens += b.get("tokens_used", 0)
             sum_clips += b.get("clips_used", 0)
             sum_cost += b.get("estimated_cost_usd", 0) or 0
@@ -204,6 +210,57 @@ def build_viewer_app() -> FastAPI:
     @app.get("/api/gallery")
     async def gallery():
         return await asyncio.to_thread(_compute_gallery)
+
+    @app.post("/api/critique")
+    def critique(req: CritiqueReq) -> dict:
+        import tempfile
+        import shutil
+        import requests
+        from auteur.models import Shot
+        from auteur import media
+        from auteur.config import ProductionConfig
+        from auteur.budget import BudgetGovernor
+        from auteur.llm import QwenClient
+        from auteur.agents.editor import Editor
+
+        cfg = ProductionConfig()
+        ledger_dir = Path(tempfile.gettempdir()) / "auteur_critique"
+        ledger_dir.mkdir(parents=True, exist_ok=True)
+        governor = BudgetGovernor(cfg.budget, ledger_path=ledger_dir / "ledger.json")
+        client = QwenClient(governor)
+        editor = Editor(client, governor)
+
+        video_path = req.video_url
+        is_temp = False
+        if video_path.startswith("http://") or video_path.startswith("https://"):
+            try:
+                resp = requests.get(video_path, stream=True, timeout=60)
+                resp.raise_for_status()
+                temp_video = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+                temp_video.close()
+                video_path = temp_video.name
+                is_temp = True
+                with open(video_path, "wb") as f:
+                    shutil.copyfileobj(resp.raw, f)
+            except Exception as e:
+                return {"error": f"Failed to download video: {e}"}
+
+        try:
+            path = Path(video_path)
+            if not path.exists():
+                return {"error": f"Video file not found: {video_path}"}
+            frames = media.extract_frames(path)
+            shot = Shot(index=0, beat_index=0, description=req.prompt, video_prompt=req.prompt, dialogue="", importance=0.5)
+            review = editor.critique(shot, frames, prev_frame_uris=None)
+            return review
+        except Exception as e:
+            return {"error": str(e)}
+        finally:
+            if is_temp and os.path.exists(video_path):
+                try:
+                    os.unlink(video_path)
+                except OSError:
+                    pass
 
     return app
 

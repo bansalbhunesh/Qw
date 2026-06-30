@@ -11,7 +11,7 @@ import contextvars
 import json
 import queue
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any
 
 active_production = contextvars.ContextVar("active_production", default=None)

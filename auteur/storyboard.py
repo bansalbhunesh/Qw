@@ -7,8 +7,6 @@ that proves the pipeline works end-to-end.
 
 from __future__ import annotations
 
-import base64
-import json
 from pathlib import Path
 
 from . import log, media
@@ -33,8 +31,6 @@ def export_storyboard(workdir: str | Path, manifest: dict, out_path: str | Path 
         retaken = shot.get("retaken", False)
 
         score_color = _score_color(score)
-        imp_bar = _bar(importance, "#6ea8fe")
-        score_bar = _bar((score or 0) / 10.0, score_color)
 
         frames_html = ""
         for uri in frames:

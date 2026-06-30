@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.venv/
+venv/
+out/
+out_live*/
+series_out/
+productions/
+bench/results/
+*.zip
+*.mp4
+*.wav
+*.png
+*.jpg
+.DS_Store

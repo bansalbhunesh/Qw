@@ -5,13 +5,11 @@ External agents (e.g., Claude, Cursor, Qwen Studio) can connect to this server a
 to build or critique AI video productions autonomously.
 """
 
-from typing import Dict, Any, List
 import json
 from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from auteur.config import ProductionConfig
-from auteur.agents.showrunner import Showrunner
 from auteur.agents.editor import Editor
 from auteur.llm import QwenClient
 from auteur.budget import BudgetGovernor
@@ -105,7 +103,7 @@ def auteur_critique(video_path: str, prompt_text: str = "", workdir: str = "out"
     editor = Editor(client, governor)
     
     # Dummy shot for the critic to evaluate
-    shot = Shot(index=0, beat_index=0, description=prompt_text, video_prompt=prompt_text, dialogue="")
+    shot = Shot(index=0, beat_index=0, description=prompt_text, video_prompt=prompt_text, dialogue="", importance=0.5)
     
     try:
         frames = media.extract_frames(path)

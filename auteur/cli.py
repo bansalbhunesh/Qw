@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
@@ -98,14 +97,14 @@ def main(argv: list[str] | None = None) -> int:
     summary = show.governor.summary()
 
     print(f"\n{'=' * 60}")
-    print(f"  PRODUCTION COMPLETE")
+    print("  PRODUCTION COMPLETE")
     print(f"{'=' * 60}")
     print(f"  Final cut  : {prod.final_path}")
     print(f"  Storyboard : {Path(args.out) / 'storyboard.html'}")
     print(f"  Manifest   : {Path(args.out) / 'manifest.json'}")
     print(f"  Ledger     : {Path(args.out) / 'ledger.json'}")
 
-    print(f"\n  Budget:")
+    print("\n  Budget:")
     pct = summary['tokens_used'] / max(1, summary['token_budget']) * 100
     print(f"    Tokens  : {summary['tokens_used']:,} / {summary['token_budget']:,}  ({pct:.1f}%)")
     print(f"    Clips   : {summary['clips_used']} / {summary['clip_budget']}")
@@ -114,14 +113,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"    Spend   : ${summary['estimated_cost_usd']:.2f} / ${summary['max_spend_usd']:.2f}")
 
     if summary.get('tokens_by_stage'):
-        print(f"\n  Token breakdown by stage:")
+        print("\n  Token breakdown by stage:")
         for stage, tokens in sorted(summary['tokens_by_stage'].items(),
                                     key=lambda x: -x[1]):
             bar = '#' * max(1, int(tokens / max(1, summary['tokens_used']) * 30))
             print(f"    {stage:16s}  {tokens:>6,}  {bar}")
 
     if summary.get('tokens_by_tier'):
-        print(f"\n  Token breakdown by tier (model routing):")
+        print("\n  Token breakdown by tier (model routing):")
         tier_names = {'grunt': 'qwen-flash', 'creative': 'qwen-max', 'vision': 'qwen-vl-max'}
         for tier, tokens in sorted(summary['tokens_by_tier'].items(),
                                    key=lambda x: -x[1]):
@@ -137,7 +136,7 @@ def main(argv: list[str] | None = None) -> int:
             hi = max(s.critic_score for s in scored)
             print(f"\n  Quality: avg={avg:.1f}  min={lo:.1f}  max={hi:.1f}")
 
-        print(f"\n  Quality arc:")
+        print("\n  Quality arc:")
         for s in prod.script.shots:
             if s.critic_score is not None:
                 bar_len = int(s.critic_score * 3)
@@ -159,7 +158,7 @@ def main(argv: list[str] | None = None) -> int:
         manifest = _json.loads(manifest_path.read_text())
         eff = manifest.get("report_card", {}).get("efficiency", {})
         if eff.get("tokens_saved_by_routing", 0) > 0:
-            print(f"\n  Routing efficiency:")
+            print("\n  Routing efficiency:")
             print(f"    Actual tokens    : {eff['actual_tokens']:,}")
             print(f"    Naive estimate   : {eff['naive_estimate_tokens']:,}")
             print(f"    Saved by routing : {eff['tokens_saved_by_routing']:,}  "
