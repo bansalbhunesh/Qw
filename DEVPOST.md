@@ -90,7 +90,7 @@ AUTEUR_MOCK=1 python -m bench.benchmark --premises bench/premises.txt
 AUTEUR_MOCK=1 python -m bench.ablation --premise "A lighthouse keeper teaches the drone sent to replace him"
 # → proves each feature's contribution in isolation
 
-# 5. Run the full test suite (85 tests)
+# 5. Run the full test suite (87 tests)
 AUTEUR_MOCK=1 python -m pytest -q
 ```
 
@@ -119,7 +119,9 @@ Mock mode swaps two seams — the DashScope LLM client returns structured stubs,
 - A **benchmark harness** that scores Auteur vs. a naive baseline using Qwen-VL as an impartial judge — in a field where ~95% of hackathon submissions have zero evaluation
 - An **ablation study** that disables each architectural feature in turn to prove its contribution — not a grab-bag of features, an engineered system
 - **Series Mode** that locks the Style Bible after Episode 1 and maintains character and world consistency across a multi-episode arc
-- **85 passing tests**, covering every agent, the budget governor, the event bus, the storyboard export, and the web API
+- **Live HLS Streaming Engine** and **Dynamic Foley Soundscapes** generated procedurally via ffmpeg to create environment-aware audio layers under the dialogue
+- **Embedded MCP Server integration** providing native Qwen Studio/Cursor autonomous control with a ready-to-use `Qwen_Skill.json`
+- **87 passing tests**, covering every agent, the budget governor, the event bus, the storyboard export, and the web API
 - A production that is **truly resilient**: voice failures don't discard clips, partial-shot recovery, Windows-safe assembly, quota-exhaustion detection with clear guidance
 
 ### Audit Trail
