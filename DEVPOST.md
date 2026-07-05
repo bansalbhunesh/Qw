@@ -71,7 +71,7 @@ Every claim Auteur makes is verifiable. The entire pipeline — budget governor,
 
 ```bash
 # Clone and install
-git clone https://github.com/YOUR_REPO/auteur.git && cd auteur
+git clone https://github.com/bansalbhunesh/Qw.git && cd Qw
 pip install -r requirements.txt
 
 # 1. Run a single production (mock mode — no API key needed)

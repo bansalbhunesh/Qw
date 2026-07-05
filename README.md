@@ -204,7 +204,7 @@ Every Auteur production outputs five first-class artifacts:
 | **Narrative ability** | Structured beat-sheet screenwriting with importance-weighted beats, not one-shot prompting |
 | **Multimodal orchestration** | Qwen-Max + Qwen-VL + Wan + CosyVoice TTS coordinated in a 4-axis critic loop with cross-shot continuity scoring |
 | **Output quality under a token budget** | The Budget Governor — a live 7.3/10 production using 10.9% of budget with 46% routing savings, plus a naive-vs-Auteur benchmark and an ablation study proving each feature's contribution |
-| **Production-readiness** | Alibaba Cloud (ECS + OSS + DashScope), token ledger, eval harness, ablation study, 85 tests, storyboard export, live web viewer, concurrent-safe multi-tenant backend |
+| **Production-readiness** | Alibaba Cloud (ECS + OSS + DashScope), token ledger, eval harness, ablation study, 92 tests, storyboard export, live web viewer, concurrent-safe multi-tenant backend |
 | **Innovation** | Adaptive scarcity-aware retakes, cross-shot visual continuity, dynamic resolution routing, prompt optimizer, tone-aware transitions — not a linear pipeline |
 
 ---
@@ -214,7 +214,7 @@ Every Auteur production outputs five first-class artifacts:
 ### Option 1: Docker (fastest — one command)
 
 ```bash
-git clone <this-repo> && cd auteur
+git clone https://github.com/bansalbhunesh/Qw && cd Qw
 cp .env.example .env          # no key needed for mock mode
 docker compose up -d
 # Studio at http://localhost:8080  •  API at http://localhost:8000/docs
