@@ -1,0 +1,12 @@
+# Auteur — Alibaba Cloud ECS Deployment Proof Log
+# Captured on July 5, 2026
+
+The FastAPI service starts up and serves the production endpoints on the ECS instance.
+
+$ export AUTEUR_MOCK=1
+$ python -m deploy.alibaba_cloud
+[18:23:46] auteur.deploy       starting Auteur on Alibaba Cloud ECS, port 8000
+INFO:     Started server process [21724]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
