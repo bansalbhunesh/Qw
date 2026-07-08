@@ -108,9 +108,8 @@ def dashscope_smoke_test() -> dict:
 # --- FastAPI service (runs on Alibaba Cloud ECS) ----------------------------------------
 
 def build_app():
-    from fastapi import FastAPI, BackgroundTasks
+    from fastapi import FastAPI
     from fastapi.responses import FileResponse, HTMLResponse
-    from pydantic import BaseModel
 
     from auteur.agents.showrunner import Showrunner
     from auteur.config import ProductionConfig

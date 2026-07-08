@@ -1,7 +1,6 @@
 """Benchmark harness smoke test (mock mode)."""
 
 import os
-from pathlib import Path
 
 os.environ["AUTEUR_MOCK"] = "1"
 

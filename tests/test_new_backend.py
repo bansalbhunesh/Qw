@@ -4,12 +4,11 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 os.environ["AUTEUR_MOCK"] = "1"
 
 from auteur.agents.showrunner import Showrunner
 from auteur.config import ProductionConfig
-from auteur.models import Production, Script, Shot
+from auteur.models import Shot
 
 
 def _cfg(shots=2):
@@ -24,7 +23,6 @@ def test_auto_trimmer_trims_temporal_degradation(tmp_path):
     from auteur.agents.editor import Editor
     from auteur.llm import QwenClient
     from auteur.budget import BudgetGovernor
-    import shutil
 
     # Setup dummy clips
     dummy1 = tmp_path / "shot_1.mp4"

@@ -1,9 +1,7 @@
 """Load testing — ensuring the orchestrator and web layer survive high concurrency."""
 
-import asyncio
 import os
 import pytest
-from httpx import AsyncClient
 import concurrent.futures
 
 os.environ["AUTEUR_MOCK"] = "1"

@@ -3,7 +3,6 @@
 import os
 from pathlib import Path
 
-import pytest
 
 # Force mock mode for the whole module.
 os.environ["AUTEUR_MOCK"] = "1"
@@ -104,7 +103,7 @@ def test_critic_scores_include_visual_continuity(tmp_path):
 def test_smart_voice_attribution():
     """Voice attribution should parse speaker tags and character names."""
     from auteur.agents.showrunner import Showrunner
-    from auteur.models import Character, Production, Script, Shot, StyleBible
+    from auteur.models import Character, Production, Shot, StyleBible
 
     chars = [
         Character(name="Mara", description="nurse", voice="warm"),

@@ -9,7 +9,6 @@ the empirical rigor of the system without any mocks.
 
 import argparse
 import json
-import time
 from pathlib import Path
 
 from auteur.agents.cinematographer import Cinematographer

@@ -1,8 +1,4 @@
-import pytest
-import os
-import json
-from pathlib import Path
-from auteur.mcp_server import mcp, auteur_budget, auteur_critique, auteur_produce
+from auteur.mcp_server import mcp, auteur_budget
 
 def test_mcp_server_tools():
     # Verify the tools are registered

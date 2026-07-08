@@ -17,7 +17,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Install ruff
-        run: pip install ruff
+        run: pip install ruff==0.15.17
       - name: Ruff check
         run: ruff check .
 
@@ -40,4 +40,4 @@ jobs:
       - name: Run test suite (no API key required)
         env:
           AUTEUR_MOCK: "1"
-        run: pytest -q
+        run: python -m pytest -q

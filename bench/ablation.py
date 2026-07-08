@@ -19,7 +19,6 @@ import argparse
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from unittest.mock import patch
 
 from auteur.agents.showrunner import Showrunner
 from auteur.budget import BudgetGovernor
