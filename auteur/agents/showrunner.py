@@ -291,6 +291,18 @@ class Showrunner:
         self._export_storyboard()
 
         report = self._report_card(prod)
+
+        # Persist to the queryable SQLite store (aggregate analytics across all productions).
+        # Best-effort: a store failure must never fail a completed production.
+        try:
+            from ..store import ProductionStore
+            ProductionStore().save_production(
+                self.workdir.name, prod.premise, self.governor.summary(),
+                self.governor.entries, report_card=report, final_path=prod.final_path,
+            )
+        except Exception as e:
+            _log.warning("failed to persist production to store: %s", e)
+
         bus.emit("production_complete", "showrunner",
                  final=prod.final_path, budget=self.governor.summary(),
                  report_card=report)
