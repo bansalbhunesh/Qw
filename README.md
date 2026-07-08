@@ -44,14 +44,21 @@ versus a naive all-`qwen-max` pipeline.**
 
 ## Benchmark: Auteur vs. Naive Baseline
 
-Auteur ships a full A/B evaluation harness (`bench/`). The same premises are run through a naive single-pass pipeline and through Auteur; **Qwen-VL acts as an impartial judge** scoring both. The results prove that the architectural complexity pays for itself in measurable quality-per-token gains.
+Auteur ships a full A/B evaluation harness (`bench/`) that runs the same premises through a naive single-pass pipeline and through Auteur, with **Qwen-VL as an impartial judge** scoring both. It is fully reproducible with no API key:
 
-| System | Avg Quality (live) | Avg Tokens | Avg Clips | Retakes | Quality / 1k tok |
-|--------|--------------------|------------|-----------|---------|-----------------|
-| **Naive baseline** | 5.x / 10 | ~560 | 6 | 0 | low |
-| **Auteur** | **7.3 / 10** | **13,043** | 8 | 2 | **high** |
+```bash
+AUTEUR_MOCK=1 python -m bench.benchmark --premises bench/premises.txt
+```
 
-> *The mock harness returns deterministic scores (validates harness mechanics). The live numbers — 7.3/10 on real Wan footage using 10.9% of the budget — are from a real DashScope run with actual video generation.*
+| System | Quality | Tokens | Clips | Retakes | Source |
+|--------|---------|--------|-------|---------|--------|
+| Naive (mock) | 6.6 / 10 | ~560 | 6 | 0 | `bench/results/` |
+| Auteur (mock) | 6.6 / 10 | ~10,100 | 8 | 2 | `bench/results/` |
+| **Auteur (live)** | **7.3 / 10** | **13,043** | 8 | 2 | `out_live/ledger.json` |
+
+> **What the numbers mean, precisely.** In **mock** mode the judge returns deterministic seeded scores, so both arms land at **6.6/10** — the mock run validates that the pipeline and the VL-judge wiring work end-to-end (both arms execute, retakes fire, the ledger meters), *not* a quality delta. The **7.3/10** is a **measured single-arm** result from a real DashScope + Wan run (`out_live/`), using 10.9% of the token budget.
+>
+> ⚠️ A **live** naive-vs-Auteur A/B is gated on paid Wan billing and **has not yet been run** — we do not claim a live head-to-head quality delta we have not measured.
 
 **Model routing split (Auteur, live run):**
 
@@ -61,14 +68,14 @@ Auteur ships a full A/B evaluation harness (`bench/`). The same premises are run
 | Grunt | `qwen-flash` | 5,478 | Prompt formatting · Shot list cleanup |
 | Vision | `qwen-vl-max` | 3,267 | 4-axis critic scoring of real Wan frames |
 
-**The tiered router cut token cost 46% vs a naive all-`qwen-max` baseline.** Every routing decision is auditable in `ledger.json`.
+**Routing economics.** The tiered router sends grunt work (prompt formatting, shot-list cleanup) to `qwen-flash` instead of `qwen-max`. On the live token split this is an **estimated ~46% token-cost reduction** versus an all-`qwen-max` counterfactual — an estimate that assumes those grunt tokens would otherwise price at the premium tier, not a billed measurement. Every routing decision is auditable in `ledger.json`.
 
 Run the benchmark yourself (no API key required):
 ```bash
 AUTEUR_MOCK=1 python -m bench.benchmark --premises bench/premises.txt
 ```
 
-> **Model stack:** Auteur defaults to `qwen3-max` · `qwen3-flash` · `qwen-vl-max` · `wan2.7-t2v` — the latest generation on DashScope. Free-tier fallbacks (`wan2.2-t2v-plus`) are documented in `.env.example`.
+> **Model stack.** The code defaults to `qwen3-max` · `qwen3-flash` · `qwen-vl-max` · `wan2.7-t2v` (latest generation on DashScope), configurable in `.env`. **The live 7.3 run above used the free-tier stack** — `qwen-max` / `qwen-flash` / `qwen-vl-max` + `wan2.2-t2v-plus`, no TTS — so every metered number here is reproducible without paid billing. Upgrading the stack is a config change, not a code change.
 
 ---
 
