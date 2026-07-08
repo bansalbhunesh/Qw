@@ -1,0 +1,5 @@
+# Live-run evidence artifacts: tracked for judges to inspect, but excluded from
+# GitHub Linguist language stats so they don't misrepresent the codebase.
+out_live/storyboard.html linguist-generated=true
+out_live/*.json          linguist-generated=true
+out_live/final.mp4       -diff -text
