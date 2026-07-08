@@ -1,0 +1,23 @@
+# Ruff configuration.
+#
+# The core `auteur/` package is held to Ruff's default ruleset and is clean.
+# Helper scripts, the benchmark harness, and the test suite get narrow,
+# documented relaxations for purely stylistic rules that do not affect
+# correctness — so `ruff check` is green in CI without hiding real defects
+# in library code.
+
+target-version = "py311"
+
+[lint.per-file-ignores]
+# Dense one-shot reel-rendering utility: intentional semicolon-joined statements
+# and a short ffmpeg filter variable named `l`.
+"scripts/make_reel.py" = ["E702", "E741"]
+
+# Tests: short-lived filter/loop names (E741), an import placed after test
+# environment setup (E402), and pipeline fixture calls whose return value is
+# intentionally left unbound (F841).
+"tests/*" = ["E741", "E402", "F841"]
+
+# Benchmark harness: short math variable names and an intermediate kept for
+# readability.
+"bench/*" = ["E741", "F841"]

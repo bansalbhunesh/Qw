@@ -5,8 +5,9 @@
 > 📖 **Read the full engineering deep dive on Medium:** [How I Built an AI Showrunner That Produced a 7.3-Scored Drama for Just $0.60](https://medium.com/@bhuneshbansal20039888/how-i-built-an-ai-showrunner-that-produced-a-7-3-scored-drama-for-just-0-60-0ed3f5b70857)
 
 **Auteur produced a 7.3/10-scored vertical short drama on Alibaba Cloud Wan
-using just 10.9% of the allowed token budget — a 46% token cost reduction
-versus a naive all-`qwen-max` pipeline.**
+using just 10.9% of the allowed token budget — with an estimated ~46%
+token-cost saving from tiered model routing (see the benchmark section for
+exactly what is measured vs. estimated).**
 
 `Track 2: AI Showrunner` · Global AI Hackathon Series with Qwen Cloud
 
