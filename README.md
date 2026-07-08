@@ -184,7 +184,7 @@ flowchart TD
     S --> BG["Budget Governor\n(token ledger)"]
     W -->|"beat sheet\n+ script"| AD["ART DIRECTOR\nqwen-max"]
     AD -->|"style bible\n+ char descriptions"| PO["PROMPT OPTIMIZER\nqwen-flash"]
-    PO -->|"refined prompts"| C["CINEMATOGRAPHER\nWan t2v/i2v"]
+    PO -->|"refined prompts"| C["CINEMATOGRAPHER\nWan t2v/i2v/r2v/kf2v ladder"]
     BG -->|"resolution routing\n480P/720P/1080P"| C
     C -->|"raw clips"| EC["EDITOR / CRITIC\nQwen-VL + ffmpeg"]
     EC -->|"fail → retake"| C

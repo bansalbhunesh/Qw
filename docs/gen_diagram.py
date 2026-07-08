@@ -25,6 +25,31 @@ WAN_PURPLE = "#a855f7"
 OUT = Path(__file__).parent / "architecture.png"
 
 
+def _ttf(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
+    """Load a real TrueType font on Linux/Windows/macOS so glyphs like —, •, ·
+    render everywhere (the Linux-only DejaVu path used to fall back to a bitmap
+    font on Windows, drawing those glyphs as tofu boxes)."""
+    bold_paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "C:/Windows/Fonts/arialbd.ttf", "C:/Windows/Fonts/segoeuib.ttf",
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+    ]
+    regular_paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/segoeui.ttf",
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+    ]
+    for p in (bold_paths if bold else regular_paths):
+        try:
+            return ImageFont.truetype(p, size)
+        except OSError:
+            continue
+    try:
+        return ImageFont.load_default(size)
+    except TypeError:  # older Pillow
+        return ImageFont.load_default()
+
+
 def rounded_rect(draw, xy, fill, outline=None, radius=12):
     x0, y0, x1, y1 = xy
     draw.rounded_rectangle(xy, radius=radius, fill=fill, outline=outline, width=2)
@@ -36,12 +61,8 @@ def box(draw, x, y, w, h, label, sublabel="", fill=CARD, outline=CARD_BORDER,
     if accent_line:
         draw.line([(x, y + 4), (x, y + h - 4)], fill=accent_line, width=4)
     # Label
-    try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
-        sfont = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 13)
-    except OSError:
-        font = ImageFont.load_default()
-        sfont = font
+    font = _ttf(18, bold=True)
+    sfont = _ttf(13)
     draw.text((x + 16, y + 14), label, fill=label_color, font=font)
     if sublabel:
         draw.text((x + 16, y + 38), sublabel, fill=DIM, font=sfont)
@@ -63,10 +84,7 @@ def arrow(draw, x1, y1, x2, y2, color=DIM, label=""):
         (int(px + uy * size / 2), int(py - ux * size / 2)),
     ], fill=color)
     if label:
-        try:
-            lfont = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 11)
-        except OSError:
-            lfont = ImageFont.load_default()
+        lfont = _ttf(11)
         mx, my = (x1 + x2) // 2, (y1 + y2) // 2
         draw.text((mx + 4, my - 12), label, fill=DIM, font=lfont)
 
@@ -75,12 +93,8 @@ def main():
     img = Image.new("RGB", (W, H), BG)
     draw = ImageDraw.Draw(img)
 
-    try:
-        title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
-        sub_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
-    except OSError:
-        title_font = ImageFont.load_default()
-        sub_font = title_font
+    title_font = _ttf(28, bold=True)
+    sub_font = _ttf(14)
 
     # Title
     draw.text((40, 25), "Auteur — Architecture", fill=WHITE, font=title_font)
@@ -103,7 +117,7 @@ def main():
     arrow(draw, 450, 220, 450, 250, DIM, "script")
 
     # --- Cinematographer ---
-    box(draw, 660, 140, 300, 80, "Cinematographer", "wan t2v / i2v  |  async render", accent_line=WAN_PURPLE)
+    box(draw, 660, 140, 300, 80, "Cinematographer", "wan t2v/i2v/r2v/kf2v ladder", accent_line=WAN_PURPLE)
     arrow(draw, 590, 180, 660, 180, DIM, "bible + prompt")
 
     # --- Critic ---
@@ -126,10 +140,7 @@ def main():
     # --- Budget Governor (sidebar) ---
     box(draw, 1120, 140, 280, 180, "Budget Governor", fill="#1a1420",
         outline=ACCENT2, accent_line=ACCENT2)
-    try:
-        bfont = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 13)
-    except OSError:
-        bfont = sub_font
+    bfont = _ttf(13)
     budget_items = [
         "Token metering (per-tier)",
         "Clip render cap + USD ceiling",
@@ -176,9 +187,9 @@ def main():
     arrow(draw, 940, 760, 940, 810, QWEN_BLUE, "deploy")
 
     # --- Benchmark section ---
-    box(draw, 1160, 810, 280, 80, "Benchmark", "naive vs Auteur, Qwen-VL judge",
+    box(draw, 1160, 810, 280, 80, "Benchmark", "Qwen-VL judge · ablation harness",
         fill="#0f1520", outline=ACCENT, accent_line=ACCENT)
-    draw.text((1178, 860), "8.7 vs 6.6 at 5% of budget", fill=DIM, font=bfont)
+    draw.text((1178, 860), "live 7.3/10 at 10.9% of budget", fill=DIM, font=bfont)
 
     # --- Legend ---
     draw.text((40, 1100), "Legend:", fill=WHITE, font=sub_font)
