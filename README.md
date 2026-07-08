@@ -11,6 +11,7 @@ exactly what is measured vs. estimated).**
 
 `Track 2: AI Showrunner` · Global AI Hackathon Series with Qwen Cloud
 
+[![CI](https://github.com/bansalbhunesh/Qw/actions/workflows/ci.yml/badge.svg)](https://github.com/bansalbhunesh/Qw/actions/workflows/ci.yml)
 ![Tests](https://img.shields.io/badge/tests-92%20passing-2ea44f)
 ![Python](https://img.shields.io/badge/python-3.11%2B-3776ab)
 ![Qwen](https://img.shields.io/badge/Qwen-Max%20·%20VL%20·%20Wan%20·%20CosyVoice-6e56cf)
