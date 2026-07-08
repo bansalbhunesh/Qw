@@ -1,26 +1,39 @@
 # Alibaba Cloud Deployment Proof
 
-> Fill in the blanks after recording. This replaces the old mock-mode text log
-> (which proved nothing). See `deploy/DEPLOY_ECS.md` for the full runbook and
-> `deploy/ecs_setup.sh` for the one-shot deploy.
+Per the hackathon rules, the required proof of Alibaba Cloud usage is **a link to a code
+file in the repository that demonstrates use of Alibaba Cloud services and APIs**. Auteur
+satisfies this directly — the backend is built on Alibaba Cloud services and there is a
+live, metered run proving real calls.
 
-- **Recording (separate from the demo video):** https://youtu.be/__________
-- **Instance ID:** i-__________________
-- **Region:** ap-southeast-1 (Singapore)
-- **Public IP:** ______._____._____.____  _(live during judging July 10–31; released after)_
-- **Date recorded:** 2026-07-____
+## Alibaba Cloud services used (code-file proof)
 
-## What the recording shows
+| Alibaba Cloud service | Where it's used | What it does |
+|---|---|---|
+| **Model Studio / DashScope** (`dashscope-intl.aliyuncs.com`) | [`auteur/config.py`](../auteur/config.py) (base URLs), [`auteur/transport.py`](../auteur/transport.py), [`deploy/alibaba_cloud.py`](./alibaba_cloud.py) | All Qwen LLM/VL and Wan video calls — the entire generative pipeline runs on Qwen models on Qwen Cloud |
+| **OSS** (Object Storage Service) | [`auteur/agents/cinematographer.py`](../auteur/agents/cinematographer.py) (`_upload_image`) | Uploads anchor/reference frames so Wan i2v/r2v can condition on them |
+| **ECS service entrypoint** | [`deploy/alibaba_cloud.py`](./alibaba_cloud.py) | FastAPI app packaged to run the backend on Alibaba Cloud ECS (see `deploy/DEPLOY_ECS.md`) |
 
-1. Alibaba Cloud ECS console — instance ID and region on screen.
-2. `docker compose ps` (or the running `deploy.alibaba_cloud` process) on the host.
-3. `curl http://localhost:8000/healthz` returning a real DashScope smoke test with a
-   **non-zero token count** — proof the backend calls Qwen Cloud *from the Alibaba host*.
-4. `curl http://<public-ip>:8000/healthz` from a separate machine — reachable publicly.
-5. A browser on `http://<public-ip>:8080/` (if the full Studio is deployed).
+## Live evidence (real calls, not mock)
 
-## Code that uses Alibaba Cloud services
+`out_live/ledger.json` records a real production run against Alibaba Cloud with per-call
+metering. Models actually invoked:
 
-- `deploy/alibaba_cloud.py` — DashScope (Qwen/Qwen-VL/Wan) + OSS + the ECS service entrypoint.
-- `auteur/agents/cinematographer.py` — OSS anchor/reference upload for Wan i2v/r2v conditioning.
-- `auteur/transport.py` — DashScope OpenAI-compatible transport with retry/backoff.
+- `qwen-max`, `qwen-flash` (Qwen LLM tiers, via DashScope)
+- `qwen-vl-max` (Qwen-VL critic, via DashScope)
+- `wan2.2-t2v-plus` (Wan video generation, via DashScope)
+
+Result: a 7.3/10-scored short drama, 13,043 tokens, ~$0.60 estimated — every row auditable.
+
+## Optional: backend hosted on Alibaba Cloud compute (recording)
+
+If a live-hosting recording is also submitted, use `deploy/ecs_setup.sh` (one-shot deploy)
+and record per `deploy/DEPLOY_ECS.md`. Fill in after recording:
+
+- **Recording:** https://youtu.be/__________ · **Instance ID:** i-__________ · **Region:** ap-southeast-1 · **Date:** 2026-07-____
+
+> **Note (India / free-tier).** Alibaba Cloud's *free trial* is not currently offered for
+> India-based individual accounts, which blocks the free ECS instance. The account itself and
+> Model Studio/DashScope + OSS usage are fully functional (see the live ledger). Compute
+> hosting can still be done pay-as-you-go or via Function Compute if required — but the
+> code-file proof above is the form the rules explicitly ask for. See
+> `deploy/ORGANIZER_QUESTION.md` for the clarification requested from the organizers.
