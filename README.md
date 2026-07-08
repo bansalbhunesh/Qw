@@ -123,7 +123,24 @@ frames against the previous shot to catch character drift). A failing take gets 
 reshoot with a corrected prompt; a passing take moves to the cut. **This is the vision model closing
 the loop on the video model** — what "multimodal orchestration" actually means in practice.
 
-### 3. Series Mode — Episode-Native Continuity
+### 3. Identity-lock conditioning ladder — continuity that escalates
+Character drift is the hardest problem in generative short drama. Auteur attacks it with an
+**escalating conditioning ladder** — the strongest available lock is tried first, and every rung
+degrades gracefully so a production never stalls on an unsupported model or a rejected schema:
+
+| Rung | Conditioning | Locks |
+|------|-------------|-------|
+| **r2v** | subject/reference-to-video against a stable establishing frame | the character's *identity* across the entire drama |
+| **kf2v** | keyframe-to-video (first **and** last frame) | the exact start and end of a shot |
+| **i2v** | image-to-video from the previous shot's final frame | frame-to-frame visual continuity |
+| **t2v** | prompt only | always-available fallback |
+
+Every rung is **metered through the Budget Governor**, and the ledger records exactly which mode
+produced each clip — and what it fell back from — so the conditioning path is auditable, not a
+black box. (The ladder is fully mock-tested and live-ready; the advanced r2v/kf2v rungs activate
+when a reference is available and degrade to i2v→t2v otherwise.)
+
+### 4. Series Mode — Episode-Native Continuity
 Auteur doesn't just generate standalone shorts; it runs entire TV series. When Episode 1 wraps,
 the Showrunner **permanently locks the Style Bible** (character descriptions, visual look). When
 you request Episode 2, it reads the final narrative beat of Episode 1, generates a logical continuation,
@@ -184,7 +201,7 @@ flowchart TD
 | Writer | `qwen-max` | Premise → logline → beat sheet → scripted shots (structured JSON) |
 | Art Director | `qwen-max` + `qwen-vl-max` | Character & Style Bible for cross-shot consistency |
 | Prompt Optimizer | `qwen-flash` | Refine video prompts for Wan's strengths (pays for itself in fewer retakes) |
-| Cinematographer | `wan2.2-t2v-plus`, Wan i2v | Render shots; image-to-video for continuity; dynamic resolution |
+| Cinematographer | Wan `t2v`/`i2v`/`r2v`/`kf2v` | Escalating identity-lock conditioning ladder (r2v→kf2v→i2v→t2v) with graceful degradation; dynamic resolution |
 | Sound | CosyVoice v3-plus TTS | Dialogue voicing (English voices) + procedural score bed |
 | Editor / Critic | `qwen-vl-max` + ffmpeg | 4-axis scoring (incl. cross-shot continuity); assemble final cut |
 
