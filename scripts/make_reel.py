@@ -216,14 +216,14 @@ def build(workdir: Path, out: Path, vertical: bool):
         [("MEASURED LIVE", 44, BLUE, 470), (f"{avg:.1f} / 10", 130, WHITE, 580),
          ("avg Qwen-VL critic score", 38, GREY, 740),
          (f"{util:.1f}%  of token budget used", 48, WHITE, 900),
-         (f"{save:.0f}%  saved by model routing", 48, GREEN, 985),
-         (f"${cost:.2f}  ·  {toks:,} tokens", 48, WHITE, 1070),
+         (f"~{save:.0f}%  est. routing saving", 48, GREEN, 985),
+         (f"${cost:.2f} est.  ·  {toks:,} tokens", 48, WHITE, 1070),
          ("Budget Governor · 4-axis critic loop", 32, GREY, 1240)]
         if V else
         [("MEASURED LIVE", 42, BLUE, 250), (f"{avg:.1f} / 10   avg Qwen-VL critic score", 56, WHITE, 380),
          (f"{util:.1f}%   of the token budget used", 50, WHITE, 480),
-         (f"{save:.0f}%   tokens saved by model routing", 50, GREEN, 575),
-         (f"${cost:.2f}   spend  ·  {toks:,} tokens", 50, WHITE, 670),
+         (f"~{save:.0f}%   est. token-routing saving", 50, GREEN, 575),
+         (f"${cost:.2f} est. spend  ·  {toks:,} tokens", 50, WHITE, 670),
          ("Budget Governor · 4-axis critic · 7 agents", 32, GREY, 780)]), 4.2)
 
     print("assembling...")
