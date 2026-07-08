@@ -166,6 +166,13 @@ rendered shot, the live critic score, the Style Bible, routing efficiency, and t
 
 ![Gallery metrics](assets/gallery_metrics.png)
 
+**The Analytics dashboard (`/analytics`) — queryable evidence, not screenshots.** Every production
+and every metered call is persisted to a **structured SQLite store** (`productions/auteur.db`) that
+powers a live dashboard: cross-production spend and token totals, tokens-by-model, and the
+**r2v/kf2v/i2v/t2v conditioning-mode distribution** — the pipeline's decisions rendered as data.
+It's a real, queryable database with **zero external services to provision** (no Postgres server,
+no migrations) — a judge can open the `.db` file in any SQLite browser and audit the raw rows.
+
 ---
 
 ## Architecture
