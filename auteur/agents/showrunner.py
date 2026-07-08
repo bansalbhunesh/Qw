@@ -308,6 +308,7 @@ class Showrunner:
         clip_paths: list[str] = []
         audio_paths: list[str | None] = []
         anchor: str | None = None
+        identity_anchor: str | None = None  # stable establishing frame → r2v identity lock
         prev_frame_uris: list[str] | None = None
 
         for shot in prod.script.shots:
@@ -333,6 +334,7 @@ class Showrunner:
             try:
                 clip, audio = self._produce_shot(
                     prod, shot, reference_image=anchor,
+                    identity_reference=identity_anchor,
                     prev_frame_uris=prev_frame_uris,
                 )
                 clip_paths.append(clip)
@@ -361,6 +363,11 @@ class Showrunner:
                     anchor = media.extract_last_frame(
                         clip, self.workdir / f"anchor_{shot.index}.png",
                     )
+                    # Lock the identity reference to the first established frame so every
+                    # later shot can r2v against a stable character look (not just the
+                    # previous frame). Falls back gracefully if r2v is unavailable.
+                    if identity_anchor is None:
+                        identity_anchor = anchor
                 except Exception:
                     _log.warning("could not extract anchor frame from shot %d", shot.index)
             except QuotaExhausted as exc:
@@ -442,13 +449,16 @@ class Showrunner:
     def _produce_shot(
         self, prod: Production, shot, *,
         reference_image: str | None = None,
+        identity_reference: str | None = None,
         prev_frame_uris: list[str] | None = None,
     ) -> tuple[str, str | None]:
         """Render, critique, optionally reshoot, and voice one shot. Returns (clip_path, audio_path).
 
         `reference_image` is the previous shot's final frame, used to seed image-to-video for
-        visual continuity. `prev_frame_uris` are data-URI frames from the previous shot, passed
-        to the critic for cross-shot continuity scoring.
+        visual continuity. `identity_reference` is a stable establishing frame from early in the
+        production, used to lock character identity via reference-to-video (r2v) across the whole
+        drama. `prev_frame_uris` are data-URI frames from the previous shot, passed to the critic
+        for cross-shot continuity scoring.
         """
         prompt = ArtDirector.apply(prod.style, shot.video_prompt)
 
@@ -472,7 +482,8 @@ class Showrunner:
         # --- render ---
         clip = dp.render(
             prompt, self.workdir / f"shot_{shot.index}.mp4", index=shot.index,
-            reference_image=reference_image, duration=duration,
+            reference_image=reference_image, identity_reference=identity_reference,
+            duration=duration,
         )
 
         # --- critique (with cross-shot continuity when previous frames available) ---
@@ -515,7 +526,7 @@ class Showrunner:
                      importance=shot.importance, fix=fix[:80])
             clip = dp.render(
                 fixed_prompt, self.workdir / f"shot_{shot.index}_retake.mp4", index=shot.index,
-                reference_image=reference_image,
+                reference_image=reference_image, identity_reference=identity_reference,
             )
             shot.retaken = True
             retake_frames = self.editor.sample_frames(clip)

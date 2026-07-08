@@ -17,6 +17,8 @@ from ..budget import BudgetGovernor
 from ..config import (
     DASHSCOPE_NATIVE_BASE,
     WAN_I2V_MODEL,
+    WAN_KF2V_MODEL,
+    WAN_R2V_MODEL,
     WAN_T2V_MODEL,
     is_mock,
     require_api_key,
@@ -29,6 +31,15 @@ _log = log.get("dp")
 _POLL_INTERVAL_S = 8
 _POLL_TIMEOUT_S = 600
 _MIN_CLIP_BYTES = 4096
+
+
+def _has_oss(value: object) -> bool:
+    """True if `value` (a URL string or a list of them) references a private oss:// object."""
+    if isinstance(value, str):
+        return value.startswith("oss://")
+    if isinstance(value, (list, tuple)):
+        return any(isinstance(v, str) and v.startswith("oss://") for v in value)
+    return False
 
 
 class RenderFailed(RuntimeError):
@@ -61,16 +72,25 @@ class Cinematographer:
         index: int = 0,
         reference_image: str | None = None,
         image_url: str | None = None,
+        identity_reference: str | None = None,
+        end_reference_image: str | None = None,
         duration: float = 5.0,
     ) -> str:
-        """Render one shot to a local clip.
+        """Render one shot to a local clip via an escalating identity-lock conditioning ladder.
 
-        If `reference_image` (a local image path) or `image_url` (a public URL) is given,
-        renders image-to-video (visual continuity from the previous shot). If that i2v render
-        fails for any reason, it falls back to plain text-to-video so a production never stalls.
+        The strongest available conditioning is tried first and each rung degrades gracefully
+        to the next, so a production never stalls on an unsupported model or rejected schema:
 
-        `duration` controls target clip length (3-8s). Used for shot pacing — hooks and
-        climaxes get longer screen time than transitional beats.
+          r2v  ← `identity_reference` (a character/subject image): locks a character's identity
+          kf2v ← `reference_image` + `end_reference_image`: locks both first and last frame
+          i2v  ← `reference_image` or `image_url` (previous shot's frame): first-frame continuity
+          t2v  ← always the final fallback (prompt only)
+
+        Every rung is metered through the Budget Governor, and the ledger records exactly which
+        mode produced each clip (and what it fell back from) — so the conditioning path is
+        auditable without reading console logs.
+
+        `duration` controls target clip length (3-8s) for shot pacing.
         """
         if not self.governor.can_render_clip():
             raise RuntimeError("clip budget exhausted")
@@ -78,46 +98,123 @@ class Cinematographer:
         self._duration = max(3.0, min(8.0, duration))
 
         if is_mock():
+            # Determine the primary mode from input presence only — never upload in mock mode.
+            mode = self._available_modes(
+                reference_image, image_url, identity_reference, end_reference_image,
+            )[0]
             path = media.make_placeholder_clip(out_path, index=index, seconds=self._duration)
-            self.governor.record_video(STAGE, "mock-wan", clips=1, note=prompt[:80])
+            self.governor.record_video(STAGE, f"mock-wan-{mode}", clips=1, note=f"{mode} | {prompt[:60]}")
             return path
 
-        seed = image_url
-        if seed is None and reference_image and Path(reference_image).exists():
-            seed = self._upload_image(reference_image)
-
-        fallback_reason = ""
-        if seed:
+        ladder = self._build_ladder(
+            reference_image, image_url, identity_reference, end_reference_image,
+        )
+        fallen_from: list[str] = []
+        for i, rung in enumerate(ladder):
+            is_last = i == len(ladder) - 1
             try:
-                path = self._render_with(WAN_I2V_MODEL, prompt, out_path, index, seed)
-                self.governor.record_video(
-                    STAGE, WAN_I2V_MODEL, clips=1, note=f"i2v continuity | {prompt[:60]}",
+                path = self._render_with(
+                    rung["model"], prompt, out_path, index, mode=rung["mode"], media=rung["media"],
                 )
-                _log.info("shot %d rendered (i2v, continuity) -> %s", index, path)
+                note = f"{rung['mode']} | {prompt[:50]}"
+                if fallen_from:
+                    note += f" (fell back from {'>'.join(fallen_from)})"
+                self.governor.record_video(STAGE, rung["model"], clips=1, note=note)
+                _log.info("shot %d rendered (%s) -> %s", index, rung["mode"], path)
                 return path
-            except Exception as exc:  # i2v unsupported / failed — degrade gracefully
-                fallback_reason = f"{type(exc).__name__}: {exc}"[:90]
-                _log.warning("shot %d i2v failed (%s) — falling back to t2v", index, fallback_reason)
+            except Exception as exc:  # this rung is unsupported/failed — degrade to the next
+                if is_last:
+                    raise
+                fallen_from.append(rung["mode"])
+                _log.warning(
+                    "shot %d %s failed (%s: %s) — degrading to %s",
+                    index, rung["mode"], type(exc).__name__, str(exc)[:70], ladder[i + 1]["mode"],
+                )
+        # unreachable: the last rung either returns or raises
+        raise RenderFailed(f"conditioning ladder exhausted for shot {index}")
 
-        path = self._render_with(WAN_T2V_MODEL, prompt, out_path, index, None)
-        # Record WHY we used t2v so the ledger reveals i2v failures without needing console logs.
-        note = f"t2v (i2v fallback: {fallback_reason})" if fallback_reason else prompt[:80]
-        self.governor.record_video(STAGE, WAN_T2V_MODEL, clips=1, note=note)
-        _log.info("shot %d rendered (t2v) -> %s", index, path)
-        return path
+    @staticmethod
+    def _available_modes(
+        reference_image: str | None,
+        image_url: str | None,
+        identity_reference: str | None,
+        end_reference_image: str | None,
+    ) -> list[str]:
+        """Ordered conditioning modes available for these inputs (strongest first), no I/O.
+
+        This is the mode priority the live ladder also follows; kept separate so mock mode
+        can report the primary mode without touching the network (no OSS uploads).
+        """
+        has_prev = bool(image_url) or bool(reference_image and Path(reference_image).exists())
+        has_end = bool(end_reference_image and Path(end_reference_image).exists())
+        has_identity = bool(identity_reference and Path(identity_reference).exists())
+        modes: list[str] = []
+        if has_identity:
+            modes.append("r2v")
+        if has_prev and has_end:
+            modes.append("kf2v")
+        if has_prev:
+            modes.append("i2v")
+        modes.append("t2v")
+        return modes
+
+    def _build_ladder(
+        self,
+        reference_image: str | None,
+        image_url: str | None,
+        identity_reference: str | None,
+        end_reference_image: str | None,
+    ) -> list[dict]:
+        """Assemble the escalating list of conditioning rungs to try, strongest first.
+
+        Each rung is ``{"mode", "model", "media"}`` where ``media`` is the DashScope input
+        payload fragment for that mode. Image inputs are uploaded to OSS lazily; an upload
+        failure simply drops that rung (its conditioning image is unavailable) rather than
+        stalling the render.
+        """
+        ladder: list[dict] = []
+
+        # r2v — subject/character reference lock (strongest identity continuity)
+        if identity_reference and Path(identity_reference).exists():
+            ref_url = self._upload_image(identity_reference)
+            if ref_url:
+                ladder.append({"mode": "r2v", "model": WAN_R2V_MODEL,
+                               "media": {"ref_images_url": [ref_url]}})
+
+        # kf2v — first + last keyframe lock
+        first_url = image_url
+        if first_url is None and reference_image and Path(reference_image).exists():
+            first_url = self._upload_image(reference_image)
+        last_url = None
+        if end_reference_image and Path(end_reference_image).exists():
+            last_url = self._upload_image(end_reference_image)
+        if first_url and last_url:
+            ladder.append({"mode": "kf2v", "model": WAN_KF2V_MODEL,
+                           "media": {"first_frame_url": first_url, "last_frame_url": last_url}})
+
+        # i2v — first-frame continuity from the previous shot
+        if first_url:
+            ladder.append({"mode": "i2v", "model": WAN_I2V_MODEL,
+                           "media": {"img_url": first_url}})
+
+        # t2v — always the final, dependency-free fallback
+        ladder.append({"mode": "t2v", "model": WAN_T2V_MODEL, "media": {}})
+        return ladder
 
     def _render_with(
-        self, model: str, prompt: str, out_path: str | Path, index: int, image_url: str | None,
+        self, model: str, prompt: str, out_path: str | Path, index: int,
+        *, mode: str = "t2v", media: dict | None = None,
     ) -> str:
         duration = getattr(self, "_duration", 5.0)
-        _log.info("rendering shot %d with %s (%d chars, %.1fs)", index, model, len(prompt), duration)
+        _log.info("rendering shot %d with %s [%s] (%d chars, %.1fs)",
+                  index, model, mode, len(prompt), duration)
 
         def _do_render():
-            task_id = self._create_task(model, prompt, image_url, duration=duration)
+            task_id = self._create_task(model, prompt, media or {}, duration=duration)
             url = self._poll(task_id)
             return self._download(url, out_path)
 
-        return with_retry(_do_render, label=f"wan/shot_{index}", max_retries=2, base_delay=5.0)
+        return with_retry(_do_render, label=f"wan/shot_{index}/{mode}", max_retries=2, base_delay=5.0)
 
     # --- image upload for i2v continuity -----------------------------------------------
 
@@ -168,9 +265,10 @@ class Cinematographer:
     def _auth_headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {require_api_key()}"}
 
-    def _create_task(self, model: str, prompt: str, image_url: str | None,
+    def _create_task(self, model: str, prompt: str, media: dict | None = None,
                      duration: float = 5.0) -> str:
         from ..config import wan_size
+        media = media or {}
         # Send an explicit vertical `size` (fixes resolution AND 9:16 aspect). wan2.2-t2v-plus
         # does NOT support `duration` customization, so we only include it when explicitly
         # enabled (AUTEUR_WAN_DURATION=1) for models/tiers that do.
@@ -178,17 +276,18 @@ class Cinematographer:
         import os
         if os.getenv("AUTEUR_WAN_DURATION", "").lower() in {"1", "true", "yes"}:
             params["duration"] = int(round(duration))
+        # The conditioning inputs (img_url for i2v, ref_images_url for r2v, first/last_frame_url
+        # for kf2v) are passed straight through into input alongside the prompt.
         payload: dict = {
             "model": model,
-            "input": {"prompt": prompt},
+            "input": {"prompt": prompt, **media},
             "parameters": params,
         }
-        if image_url:
-            payload["input"]["img_url"] = image_url
 
         headers = {**self._auth_headers(), "Content-Type": "application/json",
                     "X-DashScope-Async": "enable"}
-        if image_url and image_url.startswith("oss://"):
+        # Any oss:// input needs DashScope to resolve the private object.
+        if any(_has_oss(v) for v in media.values()):
             headers["X-DashScope-OssResourceResolve"] = "enable"
 
         r = requests.post(

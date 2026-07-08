@@ -51,6 +51,13 @@ TIER_MODELS: dict[Tier, str] = {
 # Switch via AUTEUR_MODEL_WAN_T2V env var.
 WAN_T2V_MODEL = os.getenv("AUTEUR_MODEL_WAN_T2V", "wan2.7-t2v")
 WAN_I2V_MODEL = os.getenv("AUTEUR_MODEL_WAN_I2V", "wan2.7-i2v")
+# Advanced identity-lock conditioning modes (see Cinematographer's conditioning ladder):
+#   r2v  = reference/subject-to-video — locks a character's identity across shots
+#   kf2v = keyframe-to-video — locks both the first AND last frame of a shot
+# Both are attempted opportunistically and always degrade to i2v -> t2v on any failure,
+# so an unsupported model or a rejected schema never stalls a production.
+WAN_R2V_MODEL = os.getenv("AUTEUR_MODEL_WAN_R2V", "wan2.7-r2v")
+WAN_KF2V_MODEL = os.getenv("AUTEUR_MODEL_WAN_KF2V", "wan2.2-kf2v-flash")
 TTS_MODEL = os.getenv("AUTEUR_MODEL_TTS", "cosyvoice-v2")
 
 
