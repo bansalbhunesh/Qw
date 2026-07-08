@@ -103,6 +103,28 @@ def build_viewer_app() -> FastAPI:
         """Aggregate stats across every production on disk — the showcase headline."""
         return await asyncio.to_thread(_compute_metrics)
 
+    @app.get("/api/analytics")
+    async def analytics_data():
+        """Queryable analytics from the SQLite store: totals, tokens-by-model, conditioning mix."""
+        def _read():
+            from .store import ProductionStore
+            s = ProductionStore()
+            return {
+                "aggregate": s.aggregate(),
+                "tokens_by_model": s.tokens_by_model(),
+                "conditioning_modes": s.conditioning_modes(),
+                "productions": s.list_productions(),
+            }
+        try:
+            return await asyncio.to_thread(_read)
+        except Exception as e:
+            return {"error": str(e), "aggregate": {}, "tokens_by_model": [],
+                    "conditioning_modes": [], "productions": []}
+
+    @app.get("/analytics", response_class=HTMLResponse)
+    def analytics_page():
+        return _ANALYTICS_HTML
+
     @app.post("/api/produce")
     def produce(req: ProduceReq):
         prod_id = uuid.uuid4().hex[:12]
@@ -436,6 +458,7 @@ _VIEWER_HTML = """\
   <div class="logo"><span>Auteur</span></div>
   <div class="header-tag">AI Showrunner</div>
   <div class="header-spacer"></div>
+  <a href="/analytics" style="color:var(--dim);text-decoration:none;font-size:0.8rem;margin-right:1rem">Analytics &rarr;</a>
   <a href="/gallery" style="color:var(--dim);text-decoration:none;font-size:0.8rem;margin-right:1rem">Gallery &rarr;</a>
   <div class="header-status" id="status">Ready</div>
 </div>
@@ -761,6 +784,136 @@ async function load(){
         <div class="links">${sb}<a href="/productions/${p.id}/manifest.json" target="_blank">manifest</a></div>
       </div></a>`;
   }).join('');
+}
+load();
+</script>
+</body></html>
+"""
+
+
+_ANALYTICS_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auteur — Analytics</title>
+<style>
+  :root {
+    --bg:#08080d; --surface:#0f0f18; --card:#151520; --border:#252535;
+    --accent:#6366f1; --accent-dim:rgba(99,102,241,0.15);
+    --amber:#f59e0b; --green:#22c55e; --cyan:#06b6d4; --purple:#8b5cf6; --red:#ef4444;
+    --text:#e8e8f0; --dim:#7c7c96; --muted:#55556a;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+         background:var(--bg); color:var(--text); min-height:100vh; }
+  .header { background:var(--surface); border-bottom:1px solid var(--border);
+            padding:1rem 2rem; display:flex; align-items:center; gap:1rem; }
+  .logo { font-size:1.4rem; font-weight:800; letter-spacing:-0.02em; }
+  .logo span { color:var(--accent); }
+  .tag { font-size:0.7rem; color:var(--dim); background:var(--accent-dim);
+         padding:0.2rem 0.5rem; border-radius:4px; font-weight:600;
+         letter-spacing:0.04em; text-transform:uppercase; }
+  .spacer { flex:1; }
+  .nav a { color:var(--dim); text-decoration:none; font-size:0.8rem; font-weight:600;
+           margin-left:1.25rem; } .nav a:hover { color:var(--text); }
+  .wrap { padding:1.75rem 2rem; max-width:1200px; margin:0 auto; }
+  .src { font-size:0.72rem; color:var(--muted); margin-bottom:1.25rem; }
+  .src code { color:var(--dim); }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+          gap:1rem; margin-bottom:1.75rem; }
+  .kpi { background:var(--card); border:1px solid var(--border); border-radius:12px;
+         padding:1.1rem 1.25rem; }
+  .kpi .v { font-size:1.9rem; font-weight:800; letter-spacing:-0.03em; }
+  .kpi .l { font-size:0.7rem; color:var(--dim); text-transform:uppercase;
+            letter-spacing:0.06em; font-weight:600; margin-top:0.25rem; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; margin-bottom:1.75rem; }
+  @media (max-width:820px){ .grid2 { grid-template-columns:1fr; } }
+  .panel { background:var(--card); border:1px solid var(--border); border-radius:12px;
+           padding:1.25rem 1.4rem; }
+  .panel h2 { font-size:0.8rem; text-transform:uppercase; letter-spacing:0.05em;
+              color:var(--dim); font-weight:700; margin-bottom:1rem; }
+  .bar-row { display:flex; align-items:center; gap:0.7rem; margin-bottom:0.7rem; }
+  .bar-label { width:130px; font-size:0.8rem; color:var(--text); font-family:ui-monospace,monospace;
+               white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bar-track { flex:1; height:22px; background:var(--surface); border-radius:6px; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:6px; transition:width .5s ease; min-width:2px; }
+  .bar-val { width:96px; text-align:right; font-size:0.78rem; color:var(--dim);
+             font-variant-numeric:tabular-nums; }
+  .mode-pill { display:inline-block; font-size:0.65rem; font-weight:700; padding:0.1rem 0.4rem;
+               border-radius:4px; text-transform:uppercase; letter-spacing:0.03em; }
+  table { width:100%; border-collapse:collapse; font-size:0.82rem; }
+  th { text-align:left; color:var(--dim); font-size:0.68rem; text-transform:uppercase;
+       letter-spacing:0.05em; padding:0.5rem 0.6rem; border-bottom:1px solid var(--border); }
+  td { padding:0.55rem 0.6rem; border-bottom:1px solid var(--border); }
+  td.premise { color:var(--text); max-width:340px; overflow:hidden; text-overflow:ellipsis;
+               white-space:nowrap; }
+  .num { font-variant-numeric:tabular-nums; color:var(--dim); }
+  .score { font-weight:700; }
+  .empty { color:var(--muted); text-align:center; padding:3rem; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo">Auteur<span>.</span></div>
+  <div class="tag">Analytics</div>
+  <div class="spacer"></div>
+  <nav class="nav"><a href="/">Studio</a><a href="/gallery">Gallery</a><a href="/docs">API</a></nav>
+</div>
+<div class="wrap">
+  <div class="src">Queried live from the SQLite store &middot; <code>productions/auteur.db</code> &middot;
+    structured, portable, zero external services.</div>
+  <div class="kpis" id="kpis"></div>
+  <div class="grid2">
+    <div class="panel"><h2>Tokens by model</h2><div id="models"></div></div>
+    <div class="panel"><h2>Conditioning modes rendered</h2><div id="modes"></div>
+      <div style="font-size:0.7rem;color:var(--muted);margin-top:0.6rem">
+        r2v = identity lock &middot; kf2v = keyframe lock &middot; i2v = frame continuity &middot; t2v = fallback</div>
+    </div>
+  </div>
+  <div class="panel"><h2>Productions</h2><div id="prods"></div></div>
+</div>
+<script>
+const MODE_COLORS = {r2v:'var(--purple)', kf2v:'var(--cyan)', i2v:'var(--accent)', t2v:'var(--muted)'};
+function modeOf(m){ const s=String(m); for(const k of ['r2v','kf2v','i2v','t2v']) if(s.includes(k)) return k; return 't2v'; }
+function bar(label, val, max, color){
+  const pct = max>0 ? Math.max(2,(val/max)*100) : 2;
+  return `<div class="bar-row"><div class="bar-label">${label}</div>
+    <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>
+    <div class="bar-val">${val.toLocaleString()}</div></div>`;
+}
+async function load(){
+  let d;
+  try { d = await (await fetch('/api/analytics')).json(); }
+  catch(e){ document.getElementById('kpis').innerHTML='<div class="empty">store unavailable</div>'; return; }
+  const a = d.aggregate||{};
+  const kpi=(v,l)=>`<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+  document.getElementById('kpis').innerHTML =
+    kpi(a.productions||0,'Productions') + kpi((a.avg_score||0),'Avg critic score') +
+    kpi((a.total_tokens||0).toLocaleString(),'Total tokens') +
+    kpi('$'+(a.total_cost_usd||0).toFixed(2),'Est. spend') +
+    kpi(a.total_clips||0,'Clips') + kpi(a.total_retakes||0,'Retakes');
+
+  const tbm=d.tokens_by_model||[]; const mmax=Math.max(1,...tbm.map(r=>r.tokens));
+  document.getElementById('models').innerHTML = tbm.length
+    ? tbm.map(r=>bar(r.model, r.tokens, mmax, 'var(--accent)')).join('')
+    : '<div class="empty">no data yet</div>';
+
+  const cm=d.conditioning_modes||[]; const cmax=Math.max(1,...cm.map(r=>r.clips));
+  document.getElementById('modes').innerHTML = cm.length
+    ? cm.map(r=>bar(r.model, r.clips, cmax, MODE_COLORS[modeOf(r.model)])).join('')
+    : '<div class="empty">no renders yet</div>';
+
+  const p=d.productions||[];
+  document.getElementById('prods').innerHTML = p.length ? `<table>
+    <tr><th>Premise</th><th>Score</th><th>Tokens</th><th>Clips</th><th>Retakes</th><th>Est. $</th></tr>
+    ${p.map(r=>`<tr><td class="premise">${r.premise||'—'}</td>
+      <td class="score">${r.avg_critic_score!=null?Number(r.avg_critic_score).toFixed(1):'—'}</td>
+      <td class="num">${(r.tokens_used||0).toLocaleString()}</td>
+      <td class="num">${r.clips_used||0}</td><td class="num">${r.retakes_used||0}</td>
+      <td class="num">$${(r.estimated_cost_usd||0).toFixed(2)}</td></tr>`).join('')}
+    </table>` : '<div class="empty">No productions recorded yet. Run one from the Studio.</div>';
 }
 load();
 </script>
